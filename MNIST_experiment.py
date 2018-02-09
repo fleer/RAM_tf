@@ -29,7 +29,7 @@ class Experiment():
         channels = DOMAIN_OPTIONS.CHANNELS
         scaling_factor = DOMAIN_OPTIONS.SCALING_FACTOR
         sensorResolution = DOMAIN_OPTIONS.SENSOR
-        self.loc_std = DOMAIN_OPTIONS.LOC_STD
+        self.loc_std = 2.*DOMAIN_OPTIONS.LOC_STD
         self.nZooms = DOMAIN_OPTIONS.DEPTH
         self.nGlimpses = DOMAIN_OPTIONS.NGLIMPSES
 
@@ -125,7 +125,6 @@ class Experiment():
         """
         summary = tf.Summary()
         total_epochs = 0
-        performance_accuracy = 0
         validation_accuracy = 0
         # Initial Performance Check
         performance_accuracy, performance_accuracy_std = self.performance_run(total_epochs)
@@ -156,6 +155,8 @@ class Experiment():
                 lr = self.ram.learning_rate_decay()
 
 
+            # Train Accuracy
+            train_accuracy = train_accuracy/num_train_data
 
             if total_epochs % 10 == 0:
                 # Test Accuracy
@@ -167,8 +168,6 @@ class Experiment():
                 # Validation Accuracy
                 validation_accuracy, vaidation_accuracy_std = self.performance_run(total_epochs, validation=True)
 
-                # Train Accuracy
-                train_accuracy = train_accuracy/num_train_data
                 train_accuracy_std = np.sqrt(((train_accuracy_sqrt/num_train_data) - train_accuracy**2)/num_train_data)
 
                 # Print out Infos

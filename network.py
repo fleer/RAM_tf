@@ -100,7 +100,8 @@ class RAM():
        #                                       )(outputs)
 
 
-        baseline = tf.nn.sigmoid(tf.matmul(outputs, self.b_l_out))
+        #baseline = tf.nn.sigmoid(tf.matmul(outputs, self.b_l_out))
+        baseline = tf.matmul(outputs, self.b_l_out)
 
         max_p_y = tf.argmax(action_out, axis=-1)
         correct_y = tf.cast(self.actions, tf.int64)
@@ -146,9 +147,14 @@ class RAM():
         l_hl = self.weight_variable((2, hl_size))
         hl = tf.nn.relu(tf.matmul(location, l_hl))
 
-
         hg_g = self.weight_variable((hg_size, g_size))
         hl_g = self.weight_variable((hl_size, g_size))
+      #  hg_1 = self.weight_variable((hg_size + hl_size, g_size))
+      #  hg_2 = self.weight_variable((g_size, g_size))
+      #  concat = tf.concat([hg,hl], axis=-1)
+      #  g_1 = tf.nn.relu(tf.matmul(concat, hg_1))
+      #  g = tf.matmul(g_1, hg_2)
+
 
         g = tf.nn.relu(tf.matmul(hg, hg_g) + tf.matmul(hl, hl_g))
 
@@ -181,7 +187,7 @@ class RAM():
         inputs.extend([0] * (self.glimpses - 1))
 
         outputs, _ = seq2seq.rnn_decoder(inputs, initial_state, lstm_cell, loop_function=self.get_next_input)
-        self.get_next_input(outputs[-1], 0)
+        #self.get_next_input(outputs[-1], 0)
 
         return outputs
 

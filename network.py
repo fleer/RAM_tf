@@ -123,7 +123,7 @@ class RAM():
         b_loss = tf.losses.mean_squared_error(R, b)
         optimizer = tf.train.MomentumOptimizer(learning_rate=self.lr, momentum=0.9)
         train_op_a = optimizer.minimize(J)
-        train_op_l = optimizer.minimize(-Reinforce, var_list=[self.h_l_out])
+        train_op_l = optimizer.minimize(-tf.reduce_mean(Reinforce), var_list=[self.h_l_out])
         train_op_b = optimizer.minimize(b_loss, var_list=[self.b_l_out])
 
 

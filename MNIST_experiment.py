@@ -123,20 +123,22 @@ class Experiment():
                 Validation set, before stopping
         :return:
         """
-        total_epochs = 0
-        # Initial Performance Check
-        #accuracy, accuracy_std = self.performance_run(total_epochs)
-        #logging.info("Epoch={:d}: >>> Test-Accuracy: {:.4f} "
-        #              "+/- {:.6f}".format(total_epochs, accuracy, accuracy_std))
-        num_train_data = len(self.mnist.dataset.train._images)
         summary = tf.Summary()
+        total_epochs = 0
+        performance_accuracy = 0
+        validation_accuracy = 0
+        # Initial Performance Check
+        performance_accuracy, performance_accuracy_std = self.performance_run(total_epochs)
+        logging.info("Epoch={:d}: >>> Test-Accuracy: {:.4f} "
+                      "+/- {:.6f}".format(total_epochs, performance_accuracy, performance_accuracy_std))
+        num_train_data = len(self.mnist.dataset.train._images)
 
         patience_steps = 0
         early_stopping_accuracy = 0.
         for i in range(self.max_epochs):
             start_time = time.time()
-            test_accuracy = 0
-            test_accuracy_sqrt = 0
+            train_accuracy = 0
+            train_accuracy_sqrt = 0
             a_loss = []
             l_loss = []
             b_loss = []
@@ -144,8 +146,8 @@ class Experiment():
                 X, Y= self.mnist.get_batch_train(self.batch_size)
                 X = np.reshape(X, (self.batch_size, 28, 28, 1))
                 _, pred_action, nnl_loss, reinforce_loss, baseline_loss = self.ram.train(X,Y)
-                test_accuracy += np.sum(np.equal(pred_action,Y).astype(np.float32), axis=-1)
-                test_accuracy_sqrt+= np.sum((np.equal(pred_action,Y).astype(np.float32))**2, axis=-1)
+                train_accuracy += np.sum(np.equal(pred_action,Y).astype(np.float32), axis=-1)
+                train_accuracy_sqrt+= np.sum((np.equal(pred_action,Y).astype(np.float32))**2, axis=-1)
                 a_loss.append(nnl_loss)
                 l_loss.append(reinforce_loss)
                 b_loss.append(baseline_loss)
@@ -154,41 +156,41 @@ class Experiment():
                 lr = self.ram.learning_rate_decay()
 
 
-            summary.value.add(tag='Losses/Action Loss', simple_value=float(np.mean(a_loss)))
-            summary.value.add(tag='Losses/Location Loss', simple_value=float(np.mean(l_loss)))
-            summary.value.add(tag='Losses/Baseline Loss', simple_value=float(np.mean(b_loss)))
-
 
             if total_epochs % 10 == 0:
                 # Test Accuracy
-                accuracy, accuracy_std = self.performance_run(total_epochs)
-                summary.value.add(tag='Performance/Accuracy', simple_value=float(accuracy))
+                performance_accuracy, performance_accuracy_std = self.performance_run(total_epochs)
 
                 # Print out Infos
-                logging.info("Epoch={:d}: >>> Test-Accuracy: {:.4f} +/- {:.6f}".format(total_epochs, accuracy, accuracy_std))
+                logging.info("Epoch={:d}: >>> Test-Accuracy: {:.4f} +/- {:.6f}".format(total_epochs, performance_accuracy, performance_accuracy_std))
             else:
                 # Validation Accuracy
-                accuracy, accuracy_std = self.performance_run(total_epochs, validation=True)
-                summary.value.add(tag='Validation/Accuracy', simple_value=float(accuracy))
+                validation_accuracy, vaidation_accuracy_std = self.performance_run(total_epochs, validation=True)
 
-                # Test Accuracy
-                test_accuracy = test_accuracy/num_train_data
-                test_accuracy_std = np.sqrt(((test_accuracy_sqrt/num_train_data) - test_accuracy**2)/num_train_data)
-                summary.value.add(tag='Train/Accuracy', simple_value=float(test_accuracy))
+                # Train Accuracy
+                train_accuracy = train_accuracy/num_train_data
+                train_accuracy_std = np.sqrt(((train_accuracy_sqrt/num_train_data) - train_accuracy**2)/num_train_data)
 
                 # Print out Infos
                 logging.info("Epoch={:d}: >>> examples/s: {:.2f}, Action-Loss: {:.4f}, Location-Loss: {:.4f}, Baseline-Loss: {:.4f}, "
                              "Learning Rate: {:.6f}, Train-Accuracy: {:.4f} +/- {:.6f}, "
                              "Validation-Accuracy: {:.4f} +/- {:.6f}".format(total_epochs,
                                  float(num_train_data)/float(time.time()-start_time), np.mean(a_loss), np.mean(l_loss), np.mean(b_loss),
-                                 lr, test_accuracy, test_accuracy_std, accuracy, accuracy_std))
+                                 lr, train_accuracy, train_accuracy_std, validation_accuracy, vaidation_accuracy_std))
 
                 # Early Stopping
-                if early_stopping and early_stopping_accuracy < accuracy:
-                    early_stopping_accuracy = accuracy
+                if early_stopping and early_stopping_accuracy < validation_accuracy:
+                    early_stopping_accuracy = validation_accuracy
                     patience_steps = 0
                 else:
                     patience_steps += 1
+
+            summary.value.add(tag='Losses/Action Loss', simple_value=float(np.mean(a_loss)))
+            summary.value.add(tag='Losses/Location Loss', simple_value=float(np.mean(l_loss)))
+            summary.value.add(tag='Losses/Baseline Loss', simple_value=float(np.mean(b_loss)))
+            summary.value.add(tag='Performance/Accuracy', simple_value=float(performance_accuracy))
+            summary.value.add(tag='Validation/Accuracy', simple_value=float(validation_accuracy))
+            summary.value.add(tag='Train/Accuracy', simple_value=float(train_accuracy))
 
             self.summary_writer.add_summary(summary, total_epochs)
 

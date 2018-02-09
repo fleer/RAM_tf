@@ -76,9 +76,9 @@ class PARAMETERS:
     #   =========================
     #   Save and Load the Model Weights
     #   =========================
-    LOAD_MODEL = False
-    MODEL_FILE_PATH = './MNIST_Results/'
-    MODEL_FILE = 'network.h5'
+    LOAD_MODEL = True
+    MODEL_FILE_PATH = './Model/'
+    MODEL_FILE = 'model-1'
 
 
     #   =========================

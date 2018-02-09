@@ -6,7 +6,6 @@ from collections import defaultdict
 import logging
 import time
 import os
-import sys
 import json
 
 class Experiment():
@@ -27,7 +26,6 @@ class Experiment():
 
         mnist_size = DOMAIN_OPTIONS.MNIST_SIZE
         channels = DOMAIN_OPTIONS.CHANNELS
-        scaling_factor = DOMAIN_OPTIONS.SCALING_FACTOR
         sensorResolution = DOMAIN_OPTIONS.SENSOR
         self.loc_std = 2.*DOMAIN_OPTIONS.LOC_STD
         self.nZooms = DOMAIN_OPTIONS.DEPTH
@@ -59,6 +57,7 @@ class Experiment():
 
 
         with tf.Session() as sess:
+
             #   ================
             #   Train
             #   ================
@@ -66,8 +65,13 @@ class Experiment():
                            PARAMETERS.LEARNING_RATE, PARAMETERS.LEARNING_RATE_DECAY,
                            PARAMETERS.MIN_LEARNING_RATE, 2*DOMAIN_OPTIONS.LOC_STD, sess)
 
-            sess.run(tf.global_variables_initializer())
             self.saver = tf.train.Saver(max_to_keep=5)
+            if PARAMETERS.LOAD_MODEL == True:
+                print ('Loading Model...')
+                ckpt = tf.train.get_checkpoint_state(PARAMETERS.MODEL_FILE_PATH)
+                self.saver.restore(sess, ckpt.model_checkpoint_path)
+            else:
+                sess.run(tf.global_variables_initializer())
 
             self.train(PARAMETERS.LEARNING_RATE, PARAMETERS.LEARNING_RATE_DECAY, PARAMETERS.EARLY_STOPPING, PARAMETERS.PATIENCE, sess)
         self.save('./', results_file)
@@ -201,7 +205,7 @@ class Experiment():
                 return 0
 
             if total_epochs % 100 == 0:
-                self.saver.save(session, './Model/model-' + str(total_epochs) + '.cptk')
+                self.saver.save(session, save_path='./Model', global_step=total_epochs)
 
     def save(self, path, filename):
         """

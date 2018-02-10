@@ -113,7 +113,8 @@ class RAM():
         R = tf.reshape(R_batch, (self.batch_size, 1))
         b = tf.reshape(baseline, (self.batch_size, 1))
 
-        Reinforce = (self.loc - self.mean_loc)/(self.loc_std*self.loc_std) * (tf.tile(R,[1,2])-tf.tile(b, [1,2]))
+        sample_loc = self.loc + tf.random_normal(self.loc.get_shape(), 0, self.loc_std)
+        Reinforce = (sample_loc - self.loc)/(self.loc_std*self.loc_std) * (tf.tile(R,[1,2])-tf.tile(b, [1,2]))
 
         J = tf.losses.softmax_cross_entropy(self.actions_onehot,action_out)
         #J =  self.actions_onehot * action_out
@@ -162,18 +163,18 @@ class RAM():
 
     def get_next_input(self, output, i):
 
-        self.mean_loc = self.hard_tanh(tf.matmul(output, self.h_l_out))
+        self.loc = self.hard_tanh(tf.matmul(output, self.h_l_out))
 
 
-        self.loc = self.mean_loc + tf.random_normal(self.mean_loc.get_shape(), 0, self.loc_std)
+#        self.loc = self.mean_loc + tf.random_normal(self.mean_loc.get_shape(), 0, self.loc_std)
 
         sample_loc = self.hard_tanh(self.loc) * self.pixel_scaling
         return self.Glimpse_Net(sample_loc)
 
     def model(self):
-        initial_loc = self.hard_tanh(tf.matmul(tf.zeros((self.batch_size,256)), self.h_l_out))
+        sample_loc = self.hard_tanh(tf.matmul(tf.zeros((self.batch_size,256)), self.h_l_out))
 
-        sample_loc = initial_loc + tf.random_normal(initial_loc.get_shape(), 0, self.loc_std)
+        #sample_loc = initial_loc + tf.random_normal(initial_loc.get_shape(), 0, self.loc_std)
 
         initial_loc = self.hard_tanh(sample_loc) *self.pixel_scaling
 

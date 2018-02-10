@@ -68,8 +68,9 @@ class Experiment():
             self.saver = tf.train.Saver(max_to_keep=5)
             if PARAMETERS.LOAD_MODEL == True:
                 print ('Loading Model...')
-                ckpt = tf.train.get_checkpoint_state(PARAMETERS.MODEL_FILE_PATH)
-                self.saver.restore(sess, ckpt.model_checkpoint_path)
+#                ckpt = tf.train.get_checkpoint_state(PARAMETERS.MODEL_FILE_PATH)
+                #self.saver.restore(sess, ckpt.model_checkpoint_path)
+                self.saver.restore(sess, PARAMETERS.MODEL_FILE_PATH)
             else:
                 sess.run(tf.global_variables_initializer())
 

@@ -76,9 +76,8 @@ class PARAMETERS:
     #   =========================
     #   Save and Load the Model Weights
     #   =========================
-    LOAD_MODEL = True
-    MODEL_FILE_PATH = './Model/'
-    MODEL_FILE = 'model-1'
+    LOAD_MODEL = False 
+    MODEL_FILE_PATH = './Model/best_model-271.cptk'
 
 
     #   =========================

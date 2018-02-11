@@ -11,7 +11,7 @@ class RAM():
     """
 
 
-    def __init__(self, totalSensorBandwidth, batch_size, glimpses, pixel_scaling, lr, lr_decay, min_lr, loc_std, session):
+    def __init__(self, totalSensorBandwidth, batch_size, glimpses, pixel_scaling, mnist_size, channels, scaling_factor, sensorResolution, zooms, lr, lr_decay, min_lr, loc_std, session):
         """
         Intialize parameters, determine the learning rate decay and build the RAM
         :param totalSensorBandwidth: The length of the networks input vector
@@ -30,10 +30,10 @@ class RAM():
         """
 
         self.session = session
-        self.channels = 1 # grayscale
-        self.scaling = 2 # zooms -> scaling * 2**<depth_level>
-        self.sensorBandwidth = 8 # fixed resolution of sensor
-        self.depth = 1# zooms
+        self.channels = channels # grayscale
+        self.scaling = scaling_factor # zooms -> scaling * 2**<depth_level>
+        self.sensorBandwidth = sensorResolution # fixed resolution of sensor
+        self.depth = zooms# zooms
 
         self.output_dim = 10
         self.totalSensorBandwidth = totalSensorBandwidth
@@ -44,7 +44,7 @@ class RAM():
         self.lr = lr
         self.loc_std = loc_std
         self.pixel_scaling = pixel_scaling
-        self.mnist_size = 28
+        self.mnist_size = mnist_size
 
         # Learning Rate Decay
         if self.lr_decay != 0:
@@ -147,17 +147,17 @@ class RAM():
 
         l_hl = self.weight_variable((2, hl_size))
         hl = tf.nn.relu(tf.matmul(location, l_hl))
-
         hg_g = self.weight_variable((hg_size, g_size))
         hl_g = self.weight_variable((hl_size, g_size))
+
+        g = tf.nn.relu(tf.matmul(hg, hg_g) + tf.matmul(hl, hl_g))
+
       #  hg_1 = self.weight_variable((hg_size + hl_size, g_size))
       #  hg_2 = self.weight_variable((g_size, g_size))
       #  concat = tf.concat([hg,hl], axis=-1)
       #  g_1 = tf.nn.relu(tf.matmul(concat, hg_1))
       #  g = tf.matmul(g_1, hg_2)
 
-
-        g = tf.nn.relu(tf.matmul(hg, hg_g) + tf.matmul(hl, hl_g))
 
         return g
 
@@ -227,8 +227,8 @@ class RAM():
                                                 one_img.get_shape()[1].value))
 
                 # crop image to (d x d)
-                #zoom = tf.slice(one_img2, adjusted_loc, [d,d])
-                zoom = one_img2[adjusted_loc[0]:adjusted_loc[0]+d, adjusted_loc[1]:adjusted_loc[1]+d]
+                zoom = tf.slice(one_img2, adjusted_loc, [d,d])
+                #zoom = one_img2[adjusted_loc[0]:adjusted_loc[0]+d, adjusted_loc[1]:adjusted_loc[1]+d]
                 #assert not K.any(np.equal(zoom.shape, (0,0))), "Picture has size 0, location {}, depth {}".format(adjusted_loc, d)
                 #assert len(zoom[0]) == d and len(zoom[1]) == d, "Glimpse has the dims: {}".format(zoom.shape)
 
@@ -236,8 +236,10 @@ class RAM():
                 if i > 0:
                     #zoom = cv2.resize(zoom, (self.sensorBandwidth, self.sensorBandwidth),
                     #                  interpolation=cv2.INTER_LINEAR)
-                    zoom = tf.image.resize_bilinear(tf.reshape(zoom, (1, d, d, 1), (self.sensorBandwidth, self.sensorBandwidth)))
-                #zoom = np.reshape(zoom, (self.sensorBandwidth, self.sensorBandwidth))
+                    #zoom = tf.cast(zoom, tf.int32)
+                    zoom = tf.reshape(zoom, (1, d, d, 1))
+                    zoom = tf.image.resize_images(zoom, (self.sensorBandwidth, self.sensorBandwidth))
+                    zoom = tf.reshape(zoom, (self.sensorBandwidth, self.sensorBandwidth))
                 imgZooms.append(zoom)
             zooms.append(tf.stack(imgZooms))
 

@@ -24,7 +24,6 @@ class Experiment():
         #   Reading the parameters
         #   ================
 
-        mnist_size = DOMAIN_OPTIONS.MNIST_SIZE
         channels = DOMAIN_OPTIONS.CHANNELS
         sensorResolution = DOMAIN_OPTIONS.SENSOR
         self.loc_std = 2.*DOMAIN_OPTIONS.LOC_STD
@@ -40,7 +39,7 @@ class Experiment():
         #   Loading the MNIST Dataset
         #   ================
 
-        self.mnist = MNIST(mnist_size, self.batch_size, DOMAIN_OPTIONS.TRANSLATE, DOMAIN_OPTIONS.TRANSLATED_MNIST_SIZE)
+        self.mnist = MNIST(DOMAIN_OPTIONS.MNIST_SIZE, self.batch_size, DOMAIN_OPTIONS.TRANSLATE, DOMAIN_OPTIONS.TRANSLATED_MNIST_SIZE)
 
         #   ================
         #   Creating the RAM
@@ -55,13 +54,18 @@ class Experiment():
         tf.reset_default_graph()
         self.summary_writer = tf.summary.FileWriter("summary")
 
+        if DOMAIN_OPTIONS.TRANSLATE:
+            mnist_size = DOMAIN_OPTIONS.TRANSLATED_MNIST_SIZE
+        else:
+            mnist_size = DOMAIN_OPTIONS.MNIST_SIZE
 
         with tf.Session() as sess:
 
             #   ================
             #   Train
             #   ================
-            self.ram = RAM(totalSensorBandwidth, self.batch_size, self.nGlimpses, pixel_scaling,
+            self.ram = RAM(totalSensorBandwidth, self.batch_size, self.nGlimpses, pixel_scaling, mnist_size, DOMAIN_OPTIONS.CHANNELS, DOMAIN_OPTIONS.SCALING_FACTOR,
+                           DOMAIN_OPTIONS.SENSOR, DOMAIN_OPTIONS.DEPTH,
                            PARAMETERS.LEARNING_RATE, PARAMETERS.LEARNING_RATE_DECAY,
                            PARAMETERS.MIN_LEARNING_RATE, 2*DOMAIN_OPTIONS.LOC_STD, sess)
 
@@ -101,7 +105,6 @@ class Experiment():
             else:
                 X, Y= self.mnist.get_batch_test(self.batch_size)
 
-            X = np.reshape(X, (self.batch_size, 28, 28, 1))
             _, pred_action = self.ram.evaluate(X,Y)
             actions += np.sum(np.equal(pred_action,Y).astype(np.float32), axis=-1)
             actions_sqrt += np.sum((np.equal(pred_action,Y).astype(np.float32))**2, axis=-1)
@@ -147,7 +150,6 @@ class Experiment():
             b_loss = []
             while total_epochs == self.mnist.dataset.train.epochs_completed:
                 X, Y= self.mnist.get_batch_train(self.batch_size)
-                X = np.reshape(X, (self.batch_size, 28, 28, 1))
                 _, pred_action, nnl_loss, reinforce_loss, baseline_loss = self.ram.train(X,Y)
                 train_accuracy += np.sum(np.equal(pred_action,Y).astype(np.float32), axis=-1)
                 train_accuracy_sqrt+= np.sum((np.equal(pred_action,Y).astype(np.float32))**2, axis=-1)

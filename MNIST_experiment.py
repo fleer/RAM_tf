@@ -26,12 +26,14 @@ class Experiment():
 
         channels = DOMAIN_OPTIONS.CHANNELS
         sensorResolution = DOMAIN_OPTIONS.SENSOR
-        self.loc_std = 2.*DOMAIN_OPTIONS.LOC_STD
+        self.loc_std = DOMAIN_OPTIONS.LOC_STD
         self.nZooms = DOMAIN_OPTIONS.DEPTH
         self.nGlimpses = DOMAIN_OPTIONS.NGLIMPSES
 
         self.batch_size = PARAMETERS.BATCH_SIZE
         self.max_epochs = PARAMETERS.MAX_EPOCHS
+
+
 
         totalSensorBandwidth = self.nZooms * sensorResolution * sensorResolution * channels
 
@@ -41,9 +43,6 @@ class Experiment():
 
         self.mnist = MNIST(DOMAIN_OPTIONS.MNIST_SIZE, self.batch_size, DOMAIN_OPTIONS.TRANSLATE, DOMAIN_OPTIONS.TRANSLATED_MNIST_SIZE)
 
-        #   ================
-        #   Creating the RAM
-        #   ================
 
         if DOMAIN_OPTIONS.TRANSLATE:
             pixel_scaling = (DOMAIN_OPTIONS.UNIT_PIXELS * 2.)/ float(DOMAIN_OPTIONS.TRANSLATED_MNIST_SIZE)
@@ -62,12 +61,12 @@ class Experiment():
         with tf.Session() as sess:
 
             #   ================
-            #   Train
+            #   Creating the RAM
             #   ================
             self.ram = RAM(totalSensorBandwidth, self.batch_size, self.nGlimpses, pixel_scaling, mnist_size, DOMAIN_OPTIONS.CHANNELS, DOMAIN_OPTIONS.SCALING_FACTOR,
                            DOMAIN_OPTIONS.SENSOR, DOMAIN_OPTIONS.DEPTH,
                            PARAMETERS.LEARNING_RATE, PARAMETERS.LEARNING_RATE_DECAY,
-                           PARAMETERS.MIN_LEARNING_RATE, 2*DOMAIN_OPTIONS.LOC_STD, sess)
+                           PARAMETERS.MIN_LEARNING_RATE, DOMAIN_OPTIONS.LOC_STD, sess)
 
             self.saver = tf.train.Saver(max_to_keep=5)
             if PARAMETERS.LOAD_MODEL == True:
@@ -78,6 +77,9 @@ class Experiment():
             else:
                 sess.run(tf.global_variables_initializer())
 
+            #   ================
+            #   Train
+            #   ================
             self.train(PARAMETERS.LEARNING_RATE, PARAMETERS.LEARNING_RATE_DECAY, PARAMETERS.EARLY_STOPPING, PARAMETERS.PATIENCE, sess)
         self.save('./', results_file)
 
@@ -131,7 +133,6 @@ class Experiment():
                 Validation set, before stopping
         :return:
         """
-        summary = tf.Summary()
         total_epochs = 0
         validation_accuracy = 0
         # Initial Performance Check
@@ -143,6 +144,7 @@ class Experiment():
         patience_steps = 0
         early_stopping_accuracy = 0.
         for i in range(self.max_epochs):
+            summary = tf.Summary()
             start_time = time.time()
             train_accuracy = 0
             train_accuracy_sqrt = 0
@@ -194,9 +196,9 @@ class Experiment():
             summary.value.add(tag='Losses/Action Loss', simple_value=float(np.mean(a_loss)))
             summary.value.add(tag='Losses/Location Loss', simple_value=float(np.mean(l_loss)))
             summary.value.add(tag='Losses/Baseline Loss', simple_value=float(np.mean(b_loss)))
-            summary.value.add(tag='Performance/Accuracy', simple_value=float(performance_accuracy))
-            summary.value.add(tag='Validation/Accuracy', simple_value=float(validation_accuracy))
-            summary.value.add(tag='Train/Accuracy', simple_value=float(train_accuracy))
+            summary.value.add(tag='Accuracy/Performance', simple_value=float(performance_accuracy))
+            summary.value.add(tag='Accuracy/Validation', simple_value=float(validation_accuracy))
+            summary.value.add(tag='Accuracy/Train', simple_value=float(train_accuracy))
 
             self.summary_writer.add_summary(summary, total_epochs)
 

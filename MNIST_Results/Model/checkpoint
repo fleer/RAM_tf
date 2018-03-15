@@ -1,0 +1,6 @@
+model_checkpoint_path: "best_model-879.cptk"
+all_model_checkpoint_paths: "../Model-500"
+all_model_checkpoint_paths: "../Model-600"
+all_model_checkpoint_paths: "../Model-700"
+all_model_checkpoint_paths: "../Model-800"
+all_model_checkpoint_paths: "best_model-879.cptk"

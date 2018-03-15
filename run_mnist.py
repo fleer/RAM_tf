@@ -42,7 +42,7 @@ class MNIST_DOMAIN_OPTIONS:
     # Number of Glimpses
     NGLIMPSES = 7
     # Standard Deviation of the Location Policy
-    LOC_STD = 0.11
+    LOC_STD = 0.22
     # Defines how far the center of the glimpse
     # can reach the borders
     # UNIT_PIXELS = 13 --> g_c \in [2,27] for 28x28x1 images
@@ -76,9 +76,8 @@ class PARAMETERS:
     #   =========================
     #   Save and Load the Model Weights
     #   =========================
-    LOAD_MODEL = False
+    LOAD_MODEL = False 
     MODEL_FILE_PATH = './Model/'
-    MODEL_FILE = 'model-1'
 
 
     #   =========================

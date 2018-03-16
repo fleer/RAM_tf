@@ -65,7 +65,7 @@ class PARAMETERS:
     #   Number of learning epochs
     MAX_EPOCHS= 2000
     #   Batch size
-    BATCH_SIZE = 20
+    BATCH_SIZE =32
     #   Early stopping
     EARLY_STOPPING = True
     #   Number of Epochs observing the worsening of
@@ -96,7 +96,7 @@ class PARAMETERS:
     # decay to MIN_LEARNING_RATE
     LEARNING_RATE_DECAY = 800
     # Minimal Learning Rate
-    MIN_LEARNING_RATE = 0.00001
+    MIN_LEARNING_RATE = 0.0001
     # Momentum
     MOMENTUM = 0.9
     # Clipnorm

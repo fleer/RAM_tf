@@ -68,7 +68,7 @@ class RAM():
         self.cost_a, self.cost_l, self.cost_b, self.reward, self.predicted_labels, self.train_a, self.train_b = self.calc_reward(outputs)
 
     def evaluate(self,X,Y):
-        feed_dict = {self.inputs_placeholder: X, self.actions: Y, self.training: False}#,
+        feed_dict = {self.inputs_placeholder: X, self.actions: Y, self.training: True}#,
         fetches = [self.reward, self.predicted_labels]
         reward_fetched, predicted_labels_fetched = self.session.run(fetches, feed_dict=feed_dict)
         return reward_fetched, predicted_labels_fetched

@@ -68,7 +68,7 @@ class RAM():
         self.cost_a, self.cost_l, self.cost_b, self.reward, self.predicted_labels, self.train_a, self.train_b = self.calc_reward(outputs)
 
     def evaluate(self,X,Y):
-        feed_dict = {self.inputs_placeholder: X, self.actions: Y, self.training: True}#,
+        feed_dict = {self.inputs_placeholder: X, self.actions: Y, self.training: False}#,
         fetches = [self.reward, self.predicted_labels]
         reward_fetched, predicted_labels_fetched = self.session.run(fetches, feed_dict=feed_dict)
         return reward_fetched, predicted_labels_fetched
@@ -168,10 +168,10 @@ class RAM():
         return g
 
     def get_next_input(self, output, i):
+        output = tf.stop_gradient(output)
+        self.mean_loc = self.hard_tanh(tf.matmul(output, self.h_l_out))
 
-        self.mean_loc = tf.stop_gradient(self.hard_tanh(tf.matmul(output, self.h_l_out)))
-
-        self.loc =tf.stop_gradient(self.mean_loc + tf.cond(self.training, lambda: tf.random_normal(self.mean_loc.get_shape(), 0, self.loc_std), lambda: 0. ))
+        self.loc = self.mean_loc + tf.cond(self.training, lambda: tf.random_normal(self.mean_loc.get_shape(), 0, self.loc_std), lambda: 0. )
 
         sample_loc = self.hard_tanh(self.loc) * self.pixel_scaling
         self.location_list.append(sample_loc)

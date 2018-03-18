@@ -65,10 +65,10 @@ class RAM():
 
 
         outputs = self.model()
-        self.cost_a, self.cost_l, self.cost_b, self.reward, self.predicted_labels, self.train_a, self.train_b = self.calc_reward(outputs)
+        self.cost_a, self.cost_l, self.cost_b, self.reward, self.predicted_labels, self.train_a, self.train_b, self.train_l = self.calc_reward(outputs)
 
     def evaluate(self,X,Y):
-        feed_dict = {self.inputs_placeholder: X, self.actions: Y, self.training: False}#,
+        feed_dict = {self.inputs_placeholder: X, self.actions: Y, self.training: True}#,
         fetches = [self.reward, self.predicted_labels]
         reward_fetched, predicted_labels_fetched = self.session.run(fetches, feed_dict=feed_dict)
         return reward_fetched, predicted_labels_fetched
@@ -76,12 +76,12 @@ class RAM():
     def train(self,X,Y):
         feed_dict = {self.inputs_placeholder: X, self.actions: Y, self.training: True}#,
                      #self.actions_onehot: Y}
-        fetches = [self.cost_a, self.cost_l, self.cost_b, self.reward, self.predicted_labels, self.train_a, self.train_b]
+        fetches = [self.cost_a, self.cost_l, self.cost_b, self.reward, self.predicted_labels, self.train_a, self.train_b, self.train_l]
 
         results = self.session.run(fetches, feed_dict=feed_dict)
 
         cost_a_fetched, cost_l_fetched, cost_b_fetched, reward_fetched, prediction_labels_fetched, \
-        train_a_fetched, train_b_fetched = results
+        train_a_fetched, train_b_fetched, train_l_fetched = results
 
         return reward_fetched, prediction_labels_fetched, cost_a_fetched, cost_l_fetched, cost_b_fetched
 
@@ -113,16 +113,16 @@ class RAM():
         R = tf.reshape(R_batch, (self.batch_size, 1))
         b = tf.reshape(baseline, (self.batch_size, 1))
         b_ng = tf.stop_gradient(b)
+        R = tf.stop_gradient(R)
 
-        sample_loc = self.mean_loc + tf.random_normal(self.mean_loc.get_shape(), 0, self.loc_std)
-        sample_loc = self.hard_tanh(sample_loc) * self.pixel_scaling
-        Reinforce = (sample_loc - self.mean_loc)/(self.loc_std*self.loc_std) * (tf.tile(R,[1,2])-tf.tile(b_ng, [1,2]))
-        #Reinforce = (self.loc - self.mean_loc)/(self.loc_std*self.loc_std) * (tf.tile(R,[1,2])-tf.tile(b, [1,2]))
+        #sample_loc = self.mean_loc + tf.random_normal(self.mean_loc.get_shape(), 0, self.loc_std)
+        #sample_loc = self.hard_tanh(sample_loc) * self.pixel_scaling
+        #Reinforce = (sample_loc - self.mean_loc)/(self.loc_std*self.loc_std) * (tf.tile(R,[1,2])-tf.tile(b_ng, [1,2]))
+        Reinforce = (tf.stop_gradient(self.loc) - tf.stop_gradient(self.mean_loc))/(self.loc_std*self.loc_std) * (tf.tile(R,[1,2])-tf.tile(b, [1,2]))
         ratio = 1.
 
-        #responsible_outputs = tf.reduce_sum(action_out * self.actions_onehot, axis=-1)
-        #J = responsible_outputs + ratio*tf.reduce_mean(Reinforce, axis=-1)
-        J = tf.concat([action_out * self.actions_onehot, ratio*Reinforce], 1)
+       # J = tf.concat([action_out * self.actions_onehot, ratio*Reinforce], 1)
+        J = action_out * self.actions_onehot
 
         J = tf.reduce_sum(J,axis=1)
         J = tf.reduce_mean(J,axis=0)
@@ -131,11 +131,11 @@ class RAM():
         b_loss = tf.losses.mean_squared_error(R, b)
         optimizer = tf.train.MomentumOptimizer(learning_rate=self.lr, momentum=0.9, use_nesterov=True)
         train_op_a = optimizer.minimize(cost)
-        #train_op_l = optimizer.minimize(-tf.reduce_mean(Reinforce), var_list=[self.h_l_out])
+        train_op_l = optimizer.minimize(-tf.reduce_mean(tf.reduce_sum(Reinforce, axis=1), axis=0), var_list=[self.h_l_out])
         train_op_b = optimizer.minimize(b_loss, var_list=[self.b_l_out])
 
 
-        return cost, -Reinforce, b_loss, reward, max_p_y, train_op_a, train_op_b
+        return cost, -Reinforce, b_loss, reward, max_p_y, train_op_a, train_op_b, train_op_l
 
     def weight_variable(self,shape):
         initial = tf.random_uniform(shape, minval=-0.1, maxval=0.1)
@@ -168,7 +168,7 @@ class RAM():
         return g
 
     def get_next_input(self, output, i):
-        self.mean_loc = tf.stop_gradient(self.hard_tanh(tf.matmul(output, self.h_l_out)))
+        self.mean_loc = self.hard_tanh(tf.matmul(output, self.h_l_out))
 
         self.loc = self.mean_loc + tf.cond(self.training, lambda: tf.random_normal(self.mean_loc.get_shape(), 0, self.loc_std), lambda: 0. )
 

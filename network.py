@@ -168,8 +168,7 @@ class RAM():
         return g
 
     def get_next_input(self, output, i):
-        output = tf.stop_gradient(output)
-        self.mean_loc = self.hard_tanh(tf.matmul(output, self.h_l_out))
+        self.mean_loc = tf.stop_gradient(self.hard_tanh(tf.matmul(output, self.h_l_out)))
 
         self.loc = self.mean_loc + tf.cond(self.training, lambda: tf.random_normal(self.mean_loc.get_shape(), 0, self.loc_std), lambda: 0. )
 

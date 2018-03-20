@@ -48,7 +48,7 @@ class RAM():
         self.zoom_list = []
 
         # Size of Hidden state
-        self.hs_size = 512
+        self.hs_size = 256
 
         self.learning_rate = tf.placeholder(tf.float32, [])
         # Learning Rate Decay
@@ -115,7 +115,7 @@ class RAM():
 
 
         #baseline = tf.nn.sigmoid(tf.matmul(tf.reshape(outputs[-1], (self.batch_size, 256)), self.b_l_out))
-        baseline = tf.matmul(tf.reshape(outputs[-1], (self.batch_size, 256)), self.b_l_out)
+        baseline = tf.matmul(tf.reshape(outputs[-1], (self.batch_size, self.hs_size)), self.b_l_out)
 
         max_p_y = tf.argmax(action_out, axis=-1)
         correct_y = tf.cast(self.actions, tf.int64)

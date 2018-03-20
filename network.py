@@ -103,20 +103,20 @@ class RAM():
         a_h_out = self.weight_variable((self.hs_size, 10))
 
         # look at ONLY THE END of the sequence
-        action_out = tf.nn.log_softmax(tf.matmul(tf.reshape(outputs[-1], (self.batch_size, self.hs_size)), a_h_out))
-       # a_pred = []
-       # b_pred = []
-       # for o in outputs:
-       #     o = tf.reshape(o, (self.batch_size, self.hs_size))
-       #     a_pred.append(tf.nn.log_softmax(tf.matmul(o, a_h_out)))
-       #     b_pred.append(tf.matmul(o, self.b_l_out))
-       # action_out = tf.reduce_mean(a_pred, axis=0)
-       # baseline = tf.reduce_mean(b_pred, axis=0)
+       # action_out = tf.nn.log_softmax(tf.matmul(tf.reshape(outputs[-1], (self.batch_size, self.hs_size)), a_h_out))
+        a_pred = []
+        b_pred = []
+        for o in outputs:
+            o = tf.reshape(o, (self.batch_size, self.hs_size))
+            a_pred.append(tf.nn.log_softmax(tf.matmul(o, a_h_out)))
+            b_pred.append(tf.matmul(o, self.b_l_out))
+        action_out = tf.reduce_mean(a_pred, axis=0)
+        baseline = tf.reduce_mean(b_pred, axis=0)
 
 
 
         #baseline = tf.nn.sigmoid(tf.matmul(tf.reshape(outputs[-1], (self.batch_size, 256)), self.b_l_out))
-        baseline = tf.matmul(tf.reshape(outputs[-1], (self.batch_size, self.hs_size)), self.b_l_out)
+        #baseline = tf.matmul(tf.reshape(outputs[-1], (self.batch_size, self.hs_size)), self.b_l_out)
 
         max_p_y = tf.argmax(action_out, axis=-1)
         correct_y = tf.cast(self.actions, tf.int64)

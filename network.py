@@ -59,6 +59,7 @@ class RAM():
         self.inputs_placeholder = tf.placeholder(tf.float32, shape=([self.batch_size, self.mnist_size, self.mnist_size, 1]), name="images")
         self.training = tf.placeholder(tf.bool, shape=[])
         #self.inputs_placeholder = tf.placeholder(tf.float32, shape=(self.batch_size, self.totalSensorBandwidth), name="images")
+        self.summary_input = tf.summary.image("State", self.inputs_placeholder, max_outputs=1)
 
         self.h_l_out = self.weight_variable((self.hs_size, 2))
         self.b_l_out = self.weight_variable((self.hs_size, 1))
@@ -148,6 +149,10 @@ class RAM():
         #train_op_l = optimizer.minimize(-tf.reduce_mean(Reinforce), var_list=[self.h_l_out])
         train_op_b = optimizer.minimize(b_loss, var_list=[self.b_l_out])
 
+        take_first_zoom = []
+        for gl in range(self.glimpses):
+            take_first_zoom.append(self.zoom_list[gl][0])
+        self.summary_zooms = tf.summary.image("Zooms", tf.reshape(take_first_zoom, (self.glimpses, self.sensorBandwidth, self.sensorBandwidth, 1)), max_outputs=self.glimpses)
 
         return cost, -Reinforce, b_loss, reward, max_p_y, train_op_a, train_op_b
 

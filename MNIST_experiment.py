@@ -32,7 +32,7 @@ class Experiment():
 
         self.batch_size = PARAMETERS.BATCH_SIZE
         self.max_epochs = PARAMETERS.MAX_EPOCHS
-
+        self.test_images = []
 
 
         totalSensorBandwidth = self.nZooms * sensorResolution * sensorResolution * channels
@@ -107,6 +107,7 @@ class Experiment():
                 X, Y= self.mnist.get_batch_validation(self.batch_size)
             else:
                 X, Y= self.mnist.get_batch_test(self.batch_size)
+                self.test_images = X
 
             _, pred_action = self.ram.evaluate(X,Y)
             actions += np.sum(np.equal(pred_action,Y).astype(np.float32), axis=-1)
@@ -173,6 +174,13 @@ class Experiment():
 
                 # Print out Infos
                 logging.info("Epoch={:d}: >>> Test-Accuracy: {:.4f} +/- {:.6f}".format(total_epochs, performance_accuracy, performance_accuracy_std))
+
+                # Some visualization
+                img, zooms = self.ram.get_images(np.vstack([self.test_images[0]]*self.batch_size))
+
+                self.summary_writer.add_summary(img, total_epochs)
+                self.summary_writer.add_summary(zooms, total_epochs)
+                self.test_images = []
             else:
                 # Validation Accuracy
                 validation_accuracy, vaidation_accuracy_std = self.performance_run(total_epochs, validation=True)

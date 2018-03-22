@@ -103,14 +103,14 @@ class RAM():
         a_h_out = self.weight_variable((self.hs_size, 10))
 
         # look at ONLY THE END of the sequence
-       # action_out = tf.nn.log_softmax(tf.matmul(tf.reshape(outputs[-1], (self.batch_size, self.hs_size)), a_h_out))
-        a_pred = []
+        action_out = tf.nn.log_softmax(tf.matmul(tf.reshape(outputs[-1], (self.batch_size, self.hs_size)), a_h_out))
+       # a_pred = []
         b_pred = []
         for o in outputs:
             o = tf.reshape(o, (self.batch_size, self.hs_size))
-            a_pred.append(tf.nn.log_softmax(tf.matmul(o, a_h_out)))
-            b_pred.append(tf.matmul(o, self.b_l_out))
-        action_out = tf.reduce_mean(a_pred, axis=0)
+           # a_pred.append(tf.nn.log_softmax(tf.matmul(o, a_h_out)))
+            b_pred.append(tf.sigmoid(tf.matmul(o, self.b_l_out)))
+       # action_out = tf.reduce_mean(a_pred, axis=0)
         baseline = tf.reduce_mean(b_pred, axis=0)
 
 
@@ -132,7 +132,7 @@ class RAM():
         #sample_loc = self.mean_loc + tf.random_normal(self.mean_loc.get_shape(), 0, self.loc_std)
         #sample_loc = self.hard_tanh(sample_loc) * self.pixel_scaling
         #Reinforce = (sample_loc - self.mean_loc)/(self.loc_std*self.loc_std) * (tf.tile(R,[1,2])-tf.tile(b_ng, [1,2]))
-        Reinforce = (self.loc - self.mean_loc)/(self.loc_std*self.loc_std) * (tf.tile(R,[1,2])-tf.tile(b, [1,2]))
+        Reinforce = (tf.reduce_mean(self.location_list, axis=0) - self.mean_loc)/(self.loc_std*self.loc_std) * (tf.tile(R,[1,2])-tf.tile(b_ng, [1,2]))
         ratio = 1.
 
         #responsible_outputs = tf.reduce_sum(action_out * self.actions_onehot, axis=-1)
@@ -144,7 +144,8 @@ class RAM():
         cost = -J
 
         b_loss = tf.losses.mean_squared_error(R, b)
-        optimizer = tf.train.MomentumOptimizer(learning_rate=self.learning_rate, momentum=0.9, use_nesterov=True)
+        #optimizer = tf.train.MomentumOptimizer(learning_rate=self.learning_rate, momentum=0.9, use_nesterov=True)
+        optimizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate)
         train_op_a = optimizer.minimize(cost)
         #train_op_l = optimizer.minimize(-tf.reduce_mean(Reinforce), var_list=[self.h_l_out])
         train_op_b = optimizer.minimize(b_loss, var_list=[self.b_l_out])
@@ -157,7 +158,7 @@ class RAM():
         return cost, -Reinforce, b_loss, reward, max_p_y, train_op_a, train_op_b
 
     def weight_variable(self,shape):
-        initial = tf.random_uniform(shape, minval=-0.1, maxval=0.1)
+        initial = tf.random_uniform(shape, minval=-0.01, maxval=0.01)
         return tf.Variable(initial)
 
     def Glimpse_Net(self, location):
@@ -175,22 +176,22 @@ class RAM():
         l_hl = self.weight_variable((2, hl_size))
         hl = tf.nn.relu(tf.matmul(location, l_hl))
 
-        #hg_g = self.weight_variable((hg_size, g_size))
-        #hl_g = self.weight_variable((hl_size, g_size))
-        #g = tf.nn.relu(tf.matmul(hg, hg_g) + tf.matmul(hl, hl_g))
+        hg_g = self.weight_variable((hg_size, g_size))
+        hl_g = self.weight_variable((hl_size, g_size))
+        g = tf.nn.relu(tf.matmul(hg, hg_g) + tf.matmul(hl, hl_g))
 
-        hg_1 = self.weight_variable((hg_size + hl_size, g_size))
-        hg_2 = self.weight_variable((g_size, g_size))
-        concat = tf.concat([hg,hl], axis=-1)
-        g_1 = tf.nn.relu(tf.matmul(concat, hg_1))
-        g = tf.matmul(g_1, hg_2)
-
+#        hg_1 = self.weight_variable((hg_size + hl_size, g_size))
+#        hg_2 = self.weight_variable((g_size, g_size))
+#        concat = tf.concat([hg,hl], axis=-1)
+#        g_1 = tf.nn.relu(tf.matmul(concat, hg_1))
+#        g = tf.matmul(g_1, hg_2)
+#
 
         return g
 
     def get_next_input(self, output, i):
 
-        self.mean_loc = self.hard_tanh(tf.matmul(output, self.h_l_out))
+        self.mean_loc = tf.stop_gradient(self.hard_tanh(tf.matmul(output, self.h_l_out)))
 
         sample_loc =self.mean_loc + tf.cond(self.training, lambda: tf.random_normal(self.mean_loc.get_shape(), 0, self.loc_std), lambda: 0. )
 

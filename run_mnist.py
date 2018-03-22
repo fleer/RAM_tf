@@ -42,7 +42,7 @@ class MNIST_DOMAIN_OPTIONS:
     # Number of Glimpses
     NGLIMPSES = 7
     # Standard Deviation of the Location Policy
-    LOC_STD = 0.22
+    LOC_STD = 0.11
     # Defines how far the center of the glimpse
     # can reach the borders
     # UNIT_PIXELS = 13 --> g_c \in [2,27] for 28x28x1 images
@@ -94,7 +94,7 @@ class PARAMETERS:
     LEARNING_RATE = 0.001
     # Number of steps the Learning rate should (linearly)
     # decay to MIN_LEARNING_RATE
-    LEARNING_RATE_DECAY = 800
+    LEARNING_RATE_DECAY = 200
     # Minimal Learning Rate
     MIN_LEARNING_RATE = 0.00001
     # Momentum

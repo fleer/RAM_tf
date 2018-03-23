@@ -41,8 +41,8 @@ class MNIST_DOMAIN_OPTIONS:
     SCALING_FACTOR = 2
     # Number of Glimpses
     NGLIMPSES = 7
-    # Standard Deviation of the Location Policy
-    LOC_STD = 0.03
+    # Standard Deviatio of the Location Policy
+    LOC_STD = 0.22
     # Defines how far the center of the glimpse
     # can reach the borders
     # UNIT_PIXELS = 13 --> g_c \in [2,27] for 28x28x1 images
@@ -66,7 +66,7 @@ class PARAMETERS:
     #   Number of learning epochs
     MAX_EPOCHS= 2000
     #   Batch size
-    BATCH_SIZE = 20
+    BATCH_SIZE  =20
     #   Early stopping
     EARLY_STOPPING = True
     #   Number of Epochs observing the worsening of
@@ -79,7 +79,6 @@ class PARAMETERS:
     LOAD_MODEL = False 
     MODEL_FILE_PATH = './Model/'
 
-
     #   =========================
     #   Algorithm specific parameters
     #   =========================
@@ -91,10 +90,10 @@ class PARAMETERS:
     #   sgd
     OPTIMIZER = 'sgd'
     # Learning rate alpha
-    LEARNING_RATE = 0.01
+    LEARNING_RATE = 0.001
     # Number of steps the Learning rate should (linearly)
     # decay to MIN_LEARNING_RATE
-    LEARNING_RATE_DECAY = 800
+    LEARNING_RATE_DECAY = 200
     # Minimal Learning Rate
     MIN_LEARNING_RATE = 0.00001
     # Momentum

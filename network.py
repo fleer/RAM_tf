@@ -48,7 +48,7 @@ class RAM():
         self.zoom_list = []
 
         # Size of Hidden state
-        self.hs_size = 512
+        self.hs_size = 256
 
 
 
@@ -59,6 +59,7 @@ class RAM():
 
         self.inputs_placeholder = tf.placeholder(tf.float32, shape=([self.batch_size, self.mnist_size, self.mnist_size, 1]), name="images")
         self.training = tf.placeholder(tf.bool, shape=[])
+        self.learning_rate = tf.placeholder(tf.float32, shape=[])
         #self.inputs_placeholder = tf.placeholder(tf.float32, shape=(self.batch_size, self.totalSensorBandwidth), name="images")
         self.summary_input = tf.summary.image("State", self.inputs_placeholder, max_outputs=1)
 
@@ -75,7 +76,7 @@ class RAM():
 
     def get_images(self, X):
         img = np.reshape(X, (self.batch_size, self.mnist_size, self.mnist_size, self.channels))
-        feed_dict = {self.inputs_placeholder: img, self.training: True}#,
+        feed_dict = {self.inputs_placeholder: img, self.training: False}#,
         fetches = [self.summary_input, self.summary_zooms]
         summary_image, summary_zooms = self.session.run(fetches, feed_dict=feed_dict)
         return summary_image, summary_zooms
@@ -87,7 +88,7 @@ class RAM():
         return reward_fetched, predicted_labels_fetched
 
     def train(self,X,Y):
-        feed_dict = {self.inputs_placeholder: X, self.actions: Y, self.training: True}#,
+        feed_dict = {self.inputs_placeholder: X, self.actions: Y, self.training: True, self.learning_rate: self.lr}#,
                      #self.actions_onehot: Y}
         fetches = [self.cost_a, self.cost_l, self.cost_b, self.reward, self.predicted_labels, self.train_a, self.train_b, self.train_l]
 
@@ -104,19 +105,19 @@ class RAM():
         a_h_out = self.weight_variable((self.hs_size, 10))
 
         # look at ONLY THE END of the sequence
-        #action_out = tf.nn.log_softmax(tf.matmul(tf.reshape(outputs[-1], (self.batch_size, self.hs_size)), a_h_out))
-        a_pred = []
+        action_out = tf.nn.log_softmax(tf.matmul(tf.reshape(outputs[-1], (self.batch_size, self.hs_size)), a_h_out))
+        #a_pred = []
         b_pred = []
         for o in outputs:
             o = tf.reshape(o, (self.batch_size, self.hs_size))
-            a_pred.append(tf.nn.log_softmax(tf.matmul(o, a_h_out)))
+       #     a_pred.append(tf.nn.log_softmax(tf.matmul(o, a_h_out)))
             b_pred.append(tf.matmul(o, self.b_l_out))
-        action_out = tf.reduce_mean(a_pred, axis=0)
+       # action_out = tf.reduce_mean(a_pred, axis=0)
         baseline = tf.reduce_mean(b_pred, axis=0)
 
 
 
-        #baseline = tf.matmul(tf.reshape(outputs[-1], (self.batch_size, self.hs_size)), self.b_l_out)
+       # baseline = tf.sigmoid(tf.matmul(tf.reshape(outputs[-1], (self.batch_size, self.hs_size)), self.b_l_out))
 
         max_p_y = tf.argmax(action_out, axis=-1)
         correct_y = tf.cast(self.actions, tf.int64)
@@ -128,25 +129,29 @@ class RAM():
         R = tf.reshape(R_batch, (self.batch_size, 1))
         b = tf.reshape(baseline, (self.batch_size, 1))
         b_ng = tf.stop_gradient(b)
-        R = tf.stop_gradient(R)
+        #R = tf.stop_gradient(R)
 
         #sample_loc = self.mean_loc + tf.random_normal(self.mean_loc.get_shape(), 0, self.loc_std)
         #sample_loc = self.hard_tanh(sample_loc) * self.pixel_scaling
         #Reinforce = (sample_loc - self.mean_loc)/(self.loc_std*self.loc_std) * (tf.tile(R,[1,2])-tf.tile(b_ng, [1,2]))
-        Reinforce = (tf.stop_gradient(self.loc) - tf.stop_gradient(self.mean_loc))/(self.loc_std*self.loc_std) * (tf.tile(R,[1,2])-tf.tile(b, [1,2]))
+        #Reinforce = (tf.stop_gradient(self.loc) - tf.stop_gradient(self.mean_loc))/(self.loc_std*self.loc_std) * (tf.tile(R,[1,2])-tf.tile(b, [1,2]))
+        Reinforce = (tf.reduce_mean(self.location_list, axis=0) - self.mean_loc)/(self.loc_std*self.loc_std) * (tf.tile(R,[1,2])-tf.tile(b_ng, [1,2]))
         ratio = 1.
 
        # J = tf.concat([action_out * self.actions_onehot, ratio*Reinforce], 1)
         J = action_out * self.actions_onehot
+        #Reinforce  = tf.concat([J, ratio*Reinforce], 1)
 
         J = tf.reduce_sum(J,axis=1)
         J = tf.reduce_mean(J,axis=0)
         cost = -J
 
         b_loss = tf.losses.mean_squared_error(R, b)
-        optimizer = tf.train.MomentumOptimizer(learning_rate=self.lr, momentum=0.9, use_nesterov=True)
+        optimizer = tf.train.MomentumOptimizer(learning_rate=self.learning_rate, momentum=0.9, use_nesterov=True)
+        #optimizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate)
         train_op_a = optimizer.minimize(cost)
         train_op_l = optimizer.minimize(-tf.reduce_mean(tf.reduce_sum(Reinforce, axis=1), axis=0), var_list=[self.h_l_out])
+
         train_op_b = optimizer.minimize(b_loss, var_list=[self.b_l_out])
 
         take_first_zoom = []
@@ -157,7 +162,7 @@ class RAM():
         return cost, -Reinforce, b_loss, reward, max_p_y, train_op_a, train_op_b, train_op_l
 
     def weight_variable(self,shape):
-        initial = tf.random_uniform(shape, minval=-0.01, maxval=0.01)
+        initial = tf.random_uniform(shape, minval=-0.1, maxval=0.1)
         return tf.Variable(initial)
 
     def Glimpse_Net(self, location):
@@ -191,16 +196,16 @@ class RAM():
     def get_next_input(self, output, i):
         self.mean_loc = self.hard_tanh(tf.matmul(output, self.h_l_out))
 
-        self.loc = self.mean_loc + tf.cond(self.training, lambda: tf.random_normal(self.mean_loc.get_shape(), 0, self.loc_std), lambda: 0. )
+        sample_loc = self.mean_loc + tf.cond(self.training, lambda: tf.random_normal(self.mean_loc.get_shape(), 0, self.loc_std), lambda: 0. )
 
-        sample_loc = self.hard_tanh(self.loc) * self.pixel_scaling
+        self.loc = self.hard_tanh(sample_loc) * self.pixel_scaling
         self.location_list.append(sample_loc)
-        return self.Glimpse_Net(sample_loc)
+        return self.Glimpse_Net(self.loc)
 
     def model(self):
         self.location_list = []
         self.zoom_list = []
-        lstm_cell = tf.nn.rnn_cell.BasicLSTMCell(512, activation=tf.nn.relu, state_is_tuple=True)
+        lstm_cell = tf.nn.rnn_cell.BasicLSTMCell(self.hs_size, activation=tf.nn.relu, state_is_tuple=True)
 
         initial_state = lstm_cell.zero_state(self.batch_size, tf.float32)
         #initial_loc = self.hard_tanh(tf.matmul(self.rnn_cell, self.h_l_out))

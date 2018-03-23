@@ -82,7 +82,7 @@ class RAM():
         return summary_image, summary_zooms
 
     def evaluate(self,X,Y):
-        feed_dict = {self.inputs_placeholder: X, self.actions: Y, self.training: True}#,
+        feed_dict = {self.inputs_placeholder: X, self.actions: Y, self.training: False}#,
         fetches = [self.reward, self.predicted_labels]
         reward_fetched, predicted_labels_fetched = self.session.run(fetches, feed_dict=feed_dict)
         return reward_fetched, predicted_labels_fetched
@@ -111,9 +111,9 @@ class RAM():
         for o in outputs:
             o = tf.reshape(o, (self.batch_size, self.hs_size))
        #     a_pred.append(tf.nn.log_softmax(tf.matmul(o, a_h_out)))
-            b_pred.append(tf.matmul(o, self.b_l_out))
+            b_pred.append(tf.squeeze(tf.matmul(o, self.b_l_out)))
        # action_out = tf.reduce_mean(a_pred, axis=0)
-        baseline = tf.reduce_mean(b_pred, axis=0)
+       # baseline = tf.reduce_mean(b_pred, axis=0)
 
 
 
@@ -127,15 +127,20 @@ class RAM():
         reward = tf.reduce_mean(R_batch)  # overall reward
 
         R = tf.reshape(R_batch, (self.batch_size, 1))
-        b = tf.reshape(baseline, (self.batch_size, 1))
+        b = tf.transpose(tf.stack(b_pred),perm=[1,0])
         b_ng = tf.stop_gradient(b)
-        #R = tf.stop_gradient(R)
+        loc = tf.transpose(tf.stack(self.location_list),perm=[1,0])
+        R = tf.stop_gradient(R)
+        R = tf.tile(R, [1,self.glimpses])
+
 
         #sample_loc = self.mean_loc + tf.random_normal(self.mean_loc.get_shape(), 0, self.loc_std)
         #sample_loc = self.hard_tanh(sample_loc) * self.pixel_scaling
         #Reinforce = (sample_loc - self.mean_loc)/(self.loc_std*self.loc_std) * (tf.tile(R,[1,2])-tf.tile(b_ng, [1,2]))
         #Reinforce = (tf.stop_gradient(self.loc) - tf.stop_gradient(self.mean_loc))/(self.loc_std*self.loc_std) * (tf.tile(R,[1,2])-tf.tile(b, [1,2]))
-        Reinforce = (tf.reduce_mean(self.location_list, axis=0) - self.mean_loc)/(self.loc_std*self.loc_std) * (tf.tile(R,[1,2])-tf.tile(b_ng, [1,2]))
+       # Reinforce = (tf.reduce_mean(self.location_list, axis=0) - self.mean_loc)/(self.loc_std*self.loc_std) * (tf.tile(R,[1,2])-tf.tile(b_ng, [1,2]))
+      #  Reinforce = tf.reduce_mean(self.location_list, axis=0) * (tf.tile(R,[1,2])-tf.tile(b_ng, [1,2]))
+        Reinforce = - loc * (R - b_ng)
         ratio = 1.
 
        # J = tf.concat([action_out * self.actions_onehot, ratio*Reinforce], 1)
@@ -147,10 +152,11 @@ class RAM():
         cost = -J
 
         b_loss = tf.losses.mean_squared_error(R, b)
-        optimizer = tf.train.MomentumOptimizer(learning_rate=self.learning_rate, momentum=0.9, use_nesterov=True)
-        #optimizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate)
+        #optimizer = tf.train.MomentumOptimizer(learning_rate=self.learning_rate, momentum=0.9, use_nesterov=True)
+        optimizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate)
         train_op_a = optimizer.minimize(cost)
-        train_op_l = optimizer.minimize(-tf.reduce_mean(tf.reduce_sum(Reinforce, axis=1), axis=0), var_list=[self.h_l_out])
+        #train_op_l = optimizer.minimize(-tf.reduce_mean(tf.reduce_sum(Reinforce, axis=1), axis=0), var_list=[self.h_l_out])
+        train_op_l = optimizer.minimize(tf.reduce_mean(Reinforce), var_list=[self.h_l_out])
 
         train_op_b = optimizer.minimize(b_loss, var_list=[self.b_l_out])
 
@@ -196,10 +202,11 @@ class RAM():
     def get_next_input(self, output, i):
         self.mean_loc = self.hard_tanh(tf.matmul(output, self.h_l_out))
 
+        gauss = tf.distributions.Normal(self.mean_loc, self.loc_std)
         sample_loc = self.mean_loc + tf.cond(self.training, lambda: tf.random_normal(self.mean_loc.get_shape(), 0, self.loc_std), lambda: 0. )
 
         self.loc = self.hard_tanh(sample_loc) * self.pixel_scaling
-        self.location_list.append(sample_loc)
+        self.location_list.append(tf.reduce_sum(gauss.log_prob(sample_loc), 1))
         return self.Glimpse_Net(self.loc)
 
     def model(self):
@@ -211,13 +218,14 @@ class RAM():
         #initial_loc = self.hard_tanh(tf.matmul(self.rnn_cell, self.h_l_out))
 
         initial_loc = self.hard_tanh(tf.matmul(initial_state[0], self.h_l_out))
+        gauss = tf.distributions.Normal(initial_loc, self.loc_std)
       #  sample_loc = tf.matmul(initial_state, self.h_l_out)
-        sample_loc = initial_loc + tf.cond(self.training, lambda: tf.random_normal(initial_loc.get_shape(), 0, self.loc_std), lambda: 0.)
-        #sample_loc = tf.cond(self.training, lambda: tf.random_uniform((self.batch_size, 2), minval=-1., maxval=1.), lambda: initial_loc)
+        sample_loc = tf.cond(self.training, lambda: tf.random_uniform((self.batch_size, 2), minval=-1., maxval=1.), lambda: initial_loc)
         #sample_loc = tf.random_uniform([self.batch_size, 2], minval=-1., maxval=1.)
 
+        #sample_loc = tf.cond(self.training, lambda: tf.random_uniform((self.batch_size, 2), minval=-1., maxval=1.), lambda: initial_loc)
         loc = self.hard_tanh(sample_loc) *self.pixel_scaling
-        self.location_list.append(loc)
+        self.location_list.append(tf.reduce_sum(gauss.log_prob(sample_loc), 1))
 
         initial_glimpse = self.Glimpse_Net(loc)
 

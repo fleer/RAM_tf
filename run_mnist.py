@@ -42,7 +42,7 @@ class MNIST_DOMAIN_OPTIONS:
     # Number of Glimpses
     NGLIMPSES = 7
     # Standard Deviatio of the Location Policy
-    LOC_STD = 0.22
+    LOC_STD = 0.11
     # Defines how far the center of the glimpse
     # can reach the borders
     # UNIT_PIXELS = 13 --> g_c \in [2,27] for 28x28x1 images
@@ -66,7 +66,7 @@ class PARAMETERS:
     #   Number of learning epochs
     MAX_EPOCHS= 2000
     #   Batch size
-    BATCH_SIZE  =20
+    BATCH_SIZE  = 32
     #   Early stopping
     EARLY_STOPPING = True
     #   Number of Epochs observing the worsening of
@@ -93,9 +93,9 @@ class PARAMETERS:
     LEARNING_RATE = 0.001
     # Number of steps the Learning rate should (linearly)
     # decay to MIN_LEARNING_RATE
-    LEARNING_RATE_DECAY = 200
+    LEARNING_RATE_DECAY = 150
     # Minimal Learning Rate
-    MIN_LEARNING_RATE = 0.00001
+    MIN_LEARNING_RATE = 0.000001
     # Momentum
     MOMENTUM = 0.9
     # Clipnorm

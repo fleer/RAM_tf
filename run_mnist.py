@@ -91,11 +91,22 @@ class PARAMETERS:
     OPTIMIZER = 'sgd'
     # Learning rate alpha
     LEARNING_RATE = 0.01
-    # Number of steps the Learning rate should (linearly)
+    # Decay type for learning rate
+    #   - static
+    #   - linear
+    #   - exponential
+    #   - exponential_staircase
+    LEARNING_RATE_DECAY_TYPE = "linear"
+    # Number of steps the Learning rate should "linearly"
     # decay to MIN_LEARNING_RATE
-    LEARNING_RATE_DECAY = 400
+    # For "exponential" decay, the learning rate is updated as
+    # decayed_learning_rate = LEARNING_RATE *
+    #                         LEARNING_RATE_DECAY ^ (step / LEARNING_RATE_DECAY_STEPS)
+    # with integer dvision for "exponential_staircase"
+    LEARNING_RATE_DECAY_STEPS = 400
+    LEARNING_RATE_DECAY = 0.97
     # Minimal Learning Rate
-    MIN_LEARNING_RATE = 0.00001
+    MIN_LEARNING_RATE = 0.0001
     # Momentum
     MOMENTUM = 0.9
     # Clipnorm

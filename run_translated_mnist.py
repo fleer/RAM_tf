@@ -8,6 +8,7 @@ Advances in neural information processing systems. 2014.
 
 Author: Sascha Fleer
 """
+
 from MNIST_experiment import Experiment
 
 class MNIST_DOMAIN_OPTIONS:
@@ -76,9 +77,7 @@ class PARAMETERS:
     #   Save and Load the Model Weights
     #   =========================
     LOAD_MODEL = False
-    MODEL_FILE_PATH = './'
-    MODEL_FILE = 'network.h5'
-
+    MODEL_FILE_PATH = './Model/'
 
     #   =========================
     #   Algorithm specific parameters
@@ -91,10 +90,21 @@ class PARAMETERS:
     #   sgd
     OPTIMIZER = 'sgd'
     # Learning rate alpha
-    LEARNING_RATE = 0.001
-    # Number of steps the Learning rate should (linearly)
+    LEARNING_RATE = 0.01
+    # Decay type for learning rate
+    #   - static
+    #   - linear
+    #   - exponential
+    #   - exponential_staircase
+    LEARNING_RATE_DECAY_TYPE = "linear"
+    # Number of steps the Learning rate should "linearly"
     # decay to MIN_LEARNING_RATE
-    LEARNING_RATE_DECAY = 800
+    # For "exponential" decay, the learning rate is updated as
+    # decayed_learning_rate = LEARNING_RATE *
+    #                         LEARNING_RATE_DECAY ^ (step / LEARNING_RATE_DECAY_STEPS)
+    # with integer dvision for "exponential_staircase"
+    LEARNING_RATE_DECAY_STEPS = 800
+    LEARNING_RATE_DECAY = 0.97
     # Minimal Learning Rate
     MIN_LEARNING_RATE = 0.0001
     # Momentum

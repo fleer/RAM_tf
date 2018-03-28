@@ -10,7 +10,7 @@ class RAM():
     """
 
 
-    def __init__(self, totalSensorBandwidth, batch_size, glimpses, pixel_scaling, mnist_size, channels, scaling_factor, sensorResolution, zooms, lr, lr_decay, min_lr, loc_std, session):
+    def __init__(self, totalSensorBandwidth, batch_size, glimpses, pixel_scaling, mnist_size, channels, scaling_factor, sensorResolution, zooms, lr, lr_decay, lr_decay_steps, lr_decay_type, min_lr, loc_std, session):
         """
         Intialize parameters, determine the learning rate decay and build the RAM
         :param totalSensorBandwidth: The length of the networks input vector
@@ -39,7 +39,9 @@ class RAM():
         self.batch_size = batch_size
         self.glimpses = glimpses
         self.min_lr = min_lr
-        self.lr_decay = lr_decay
+        self.lr_decay_rate = lr_decay
+        self.lr_decay_steps = lr_decay_steps
+        self.lr_decay_type = lr_decay_type
         self.lr = lr
         self.loc_std = loc_std
         self.pixel_scaling = pixel_scaling
@@ -54,9 +56,9 @@ class RAM():
 
 
         # Learning Rate Decay
-        if self.lr_decay != 0:
+        if lr_decay_steps != 0 and self.lr_decay_type == "linear":
             self.lr_decay_rate = ((lr - min_lr) /
-                                  lr_decay)
+                                  lr_decay_steps)
 
         self.inputs_placeholder = tf.placeholder(tf.float32, shape=([self.batch_size, self.mnist_size, self.mnist_size, 1]), name="images")
         self.training = tf.placeholder(tf.bool, shape=[])
@@ -322,9 +324,17 @@ class RAM():
         of the learning rate
         :return: New learning rate
         """
-        # Linear Learning Rate Decay
-        #self.lr = max(self.min_lr, self.lr - self.lr_decay_rate)
-        self.lr = max(self.min_lr, self.lr * (self.lr_decay ** self.step))
+        if self.lr_decay_type == "linear":
+            # Linear Learning Rate Decay
+            self.lr = max(self.min_lr, self.lr - self.lr_decay_rate)
+        elif self.lr_decay_type == "exponential":
+            # Exponential Learning Rate Decay
+            self.lr = max(self.min_lr, self.lr * (self.lr_decay_rate ** self.step/self.lr_decay_steps))
+        elif self.lr_decay_type == "exponential_staircase":
+            # Exponential Learning Rate Decay
+            self.lr = max(self.min_lr, self.lr * (self.lr_decay_rate ** (int(self.step) // int(self.lr_decay_steps))))
+            print(int(self.step) // int(self.lr_decay_steps))
+
         self.step += 1
 
         return self.lr

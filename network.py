@@ -63,7 +63,7 @@ class RAM():
         self.mnist_size = mnist_size
 
         self.location_list = []
-        self.zoom_list = []
+        self.glimpses_list = []
 
         # Size of Hidden state
         self.hs_size = 256
@@ -113,7 +113,7 @@ class RAM():
         :param Y: Batch of the corresponding labels
         :return: Mean reward, predicted labels
         """
-        feed_dict = {self.inputs_placeholder: X, self.actions: Y, self.training: True}#,
+        feed_dict = {self.inputs_placeholder: X, self.actions: Y, self.training: False}#,
         fetches = [self.reward, self.predicted_labels]
         reward_fetched, predicted_labels_fetched = self.session.run(fetches, feed_dict=feed_dict)
         return reward_fetched, predicted_labels_fetched
@@ -152,7 +152,7 @@ class RAM():
         :return: Sequence of hidden states of the RNN
         """
         self.location_list = []
-        self.zoom_list = []
+        self.glimpses_list = []
         # Create LSTM Cell
         lstm_cell = tf.nn.rnn_cell.BasicLSTMCell(self.hs_size, activation=tf.nn.relu, state_is_tuple=True)
         initial_state = lstm_cell.zero_state(self.batch_size, tf.float32)
@@ -205,18 +205,29 @@ class RAM():
         # mean reward
         reward = tf.reduce_mean(R_batch)
 
-
+        #Uses the REINFORCE algorithm in sec 6. p.237-239)
+        # Individual loss for location network
+        # Compute loss via REINFORCE algorithm
+        # for gaussian distribution
+        # d ln(f(m,s,x))   (x - m)
+        # -------------- = -------- with m = mean, x = sample, s = standard_deviation
+        #       d m          s**2
         Reinforce = (tf.reduce_mean(self.location_list, axis=0) - self.mean_loc)/(self.loc_std*self.loc_std) * (tf.tile(R,[1,2])-tf.tile(b_ng, [1,2]))
+
+        # balances the scale of the two gradient components
         ratio = 1.
 
+        # Hybrid Loss
         J = tf.concat([action_out * self.actions_onehot, ratio*Reinforce], 1)
 
         J = tf.reduce_sum(J,axis=1)
         J = tf.reduce_mean(J,axis=0)
         cost = -J
 
+        # Baseline is trained with MSE
         b_loss = tf.losses.mean_squared_error(R, b)
 
+        # Choose Optimizer
         if self.optimizer == "rmsprop":
             trainer = tf.train.RMSPropOptimizer(learning_rate=self.learning_rate)
         elif self.optimizer == "adam":
@@ -231,60 +242,89 @@ class RAM():
         train_op_a = trainer.minimize(cost)
         train_op_b = trainer.minimize(b_loss, var_list=[self.b_l_out])
 
+        # Get data for Tensorboard summary
         take_first_zoom = []
         for gl in range(self.glimpses):
-            take_first_zoom.append(self.zoom_list[gl][0])
+            take_first_zoom.append(self.glimpses_list[gl][0])
         self.summary_zooms = tf.summary.image("Zooms", tf.reshape(take_first_zoom, (self.glimpses, self.sensorBandwidth, self.sensorBandwidth, 1)), max_outputs=self.glimpses)
 
         return cost, -Reinforce, b_loss, reward, max_p_y, train_op_a, train_op_b
 
     def weight_variable(self,shape):
+        """
+        Trainable network weights are initialized with uniform
+        value within the range [-0.01, 0.01]
+        :param shape: Desired shape
+        :return: Tensorflow variable
+        """
         initial = tf.random_uniform(shape, minval=-0.01, maxval=0.01)
         return tf.Variable(initial)
 
     def Glimpse_Net(self, location):
+        """
+        Glimpse Network
+        :param location:
+        :return: Glimpse Network output
+        """
+        # Number of weights
         hg_size = hl_size = 128
         g_size = 256
 
-        zooms = self.glimpseSensor(location)
-        self.zoom_list.append(zooms[0])
-        zooms = tf.reshape(zooms, (self.batch_size, self.totalSensorBandwidth))
-        input_layer = tf.reshape(zooms, [self.batch_size, self.totalSensorBandwidth])
-
+        # Initialize weights
         glimpse_hg = self.weight_variable((self.totalSensorBandwidth, hg_size))
-        hg = tf.nn.relu(tf.matmul(input_layer, glimpse_hg))
-
         l_hl = self.weight_variable((2, hl_size))
-        hl = tf.nn.relu(tf.matmul(location, l_hl))
-
         hg_g = self.weight_variable((hg_size, g_size))
         hl_g = self.weight_variable((hl_size, g_size))
+
+        # Get glimpses
+        glimpses = self.glimpseSensor(location)
+        # Append glimpses to list for tensorboard summary
+        self.glimpses_list.append(glimpses[0])
+
+        # Process glimpses
+        glimpses = tf.reshape(glimpses, [self.batch_size, self.totalSensorBandwidth])
+        hg = tf.nn.relu(tf.matmul(glimpses, glimpse_hg))
+
+        # Process locations
+        hl = tf.nn.relu(tf.matmul(location, l_hl))
+
+        # Combine glimpses and locations
         g = tf.nn.relu(tf.matmul(hg, hg_g) + tf.matmul(hl, hl_g))
 
         return g
 
 
     def glimpseSensor(self, normLoc):
+        """
+        Compute Glimpses
+        :param normLoc: Location for the next glimpses
+        :return: Glimpses
+        """
         # Convert location [-1,1] into MNIST Coordinates:
         loc = tf.round(((normLoc + 1.) / 2.) * self.mnist_size)
         loc = tf.cast(loc, tf.int32)
+
         zooms = []
 
         # process each image individually
         for k in range(self.batch_size):
             imgZooms = []
             one_img = self.inputs_placeholder[k,:,:,:]
-            #one_img = img[k,:,:,:]
+
             offset = self.sensorBandwidth* (self.scaling ** (self.depth-1))
 
             # pad image with zeros
             one_img = tf.image.pad_to_bounding_box(one_img, offset, offset, \
                                                    2*offset + self.mnist_size, 2*offset + self.mnist_size)
 
+            # compute the different depth images
             for i in range(self.depth):
+
+                # width/height of the next glimpse
                 d = tf.cast(self.sensorBandwidth * (self.scaling ** i), tf.int32)
                 r = d//2
 
+                # get mean location
                 loc_k = loc[k,:]
                 adjusted_loc = offset + loc_k - r
 
@@ -293,25 +333,13 @@ class RAM():
 
                 # crop image to (d x d)
                 zoom = tf.slice(one_img2, adjusted_loc, [d,d])
-                #zoom = one_img2[adjusted_loc[0]:adjusted_loc[0]+d, adjusted_loc[1]:adjusted_loc[1]+d]
-                #assert not K.any(np.equal(zoom.shape, (0,0))), "Picture has size 0, location {}, depth {}".format(adjusted_loc, d)
-                #assert len(zoom[0]) == d and len(zoom[1]) == d, "Glimpse has the dims: {}".format(zoom.shape)
-
-                # resize cropped image to (sensorBandwidth x sensorBandwidth)
                 if i > 0:
-                    #zoom = cv2.resize(zoom, (self.sensorBandwidth, self.sensorBandwidth),
-                    #                  interpolation=cv2.INTER_LINEAR)
-                    #zoom = tf.cast(zoom, tf.int32)
                     zoom = tf.reshape(zoom, (1, d, d, 1))
                     zoom = tf.image.resize_images(zoom, (self.sensorBandwidth, self.sensorBandwidth))
                     zoom = tf.reshape(zoom, (self.sensorBandwidth, self.sensorBandwidth))
                 imgZooms.append(zoom)
             zooms.append(tf.stack(imgZooms))
-
-        #  shapes = set(arr.shape for arr in zooms)
-        #  assert len(shapes) == 1, "zooms have different shapes: {}".format(zooms)
         zooms = tf.stack(zooms)
-
         return zooms
 
     def hard_tanh(self, x):

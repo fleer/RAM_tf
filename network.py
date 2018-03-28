@@ -72,7 +72,7 @@ class RAM():
 
 
         outputs = self.model()
-        self.cost_a, self.cost_l, self.cost_b, self.reward, self.predicted_labels, self.train_a, self.train_b, self.train_l = self.calc_reward(outputs)
+        self.cost_a, self.cost_l, self.cost_b, self.reward, self.predicted_labels, self.train_a, self.train_b = self.calc_reward(outputs)
 
     def get_images(self, X):
         img = np.reshape(X, (self.batch_size, self.mnist_size, self.mnist_size, self.channels))
@@ -90,12 +90,12 @@ class RAM():
     def train(self,X,Y):
         feed_dict = {self.inputs_placeholder: X, self.actions: Y, self.training: True, self.learning_rate: self.lr}#,
                      #self.actions_onehot: Y}
-        fetches = [self.cost_a, self.cost_l, self.cost_b, self.reward, self.predicted_labels, self.train_a, self.train_b, self.train_l]
+        fetches = [self.cost_a, self.cost_l, self.cost_b, self.reward, self.predicted_labels, self.train_a, self.train_b]
 
         results = self.session.run(fetches, feed_dict=feed_dict)
 
         cost_a_fetched, cost_l_fetched, cost_b_fetched, reward_fetched, prediction_labels_fetched, \
-        train_a_fetched, train_b_fetched, train_l_fetched = results
+        train_a_fetched, train_b_fetched = results
 
         return reward_fetched, prediction_labels_fetched, cost_a_fetched, cost_l_fetched, cost_b_fetched
 
@@ -140,7 +140,7 @@ class RAM():
         #Reinforce = (tf.stop_gradient(self.loc) - tf.stop_gradient(self.mean_loc))/(self.loc_std*self.loc_std) * (tf.tile(R,[1,2])-tf.tile(b, [1,2]))
        # Reinforce = (tf.reduce_mean(self.location_list, axis=0) - self.mean_loc)/(self.loc_std*self.loc_std) * (tf.tile(R,[1,2])-tf.tile(b_ng, [1,2]))
       #  Reinforce = tf.reduce_mean(self.location_list, axis=0) * (tf.tile(R,[1,2])-tf.tile(b_ng, [1,2]))
-        Reinforce = - loc * (R - b_ng)
+        Reinforce = tf.reduce_mean(loc * (R - b_ng))
         ratio = 1.
 
        # J = tf.concat([action_out * self.actions_onehot, ratio*Reinforce], 1)
@@ -148,15 +148,15 @@ class RAM():
         #Reinforce  = tf.concat([J, ratio*Reinforce], 1)
 
         J = tf.reduce_sum(J,axis=1)
-        J = tf.reduce_mean(J,axis=0)
-        cost = -J
+        #J = tf.reduce_mean(J,axis=0)
+        cost = - tf.reduce_mean(J + ratio * Reinforce, axis=0)
 
         b_loss = tf.losses.mean_squared_error(R, b)
-        #optimizer = tf.train.MomentumOptimizer(learning_rate=self.learning_rate, momentum=0.9, use_nesterov=True)
-        optimizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate)
+        optimizer = tf.train.MomentumOptimizer(learning_rate=self.learning_rate, momentum=0.9, use_nesterov=True)
+        #optimizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate)
         train_op_a = optimizer.minimize(cost)
         #train_op_l = optimizer.minimize(-tf.reduce_mean(tf.reduce_sum(Reinforce, axis=1), axis=0), var_list=[self.h_l_out])
-        train_op_l = optimizer.minimize(tf.reduce_mean(Reinforce), var_list=[self.h_l_out])
+        #train_op_l = optimizer.minimize(tf.reduce_mean(Reinforce), var_list=[self.h_l_out])
 
         train_op_b = optimizer.minimize(b_loss, var_list=[self.b_l_out])
 
@@ -165,7 +165,7 @@ class RAM():
             take_first_zoom.append(self.zoom_list[gl][0])
         self.summary_zooms = tf.summary.image("Zooms", tf.reshape(take_first_zoom, (self.glimpses, self.sensorBandwidth, self.sensorBandwidth, 1)), max_outputs=self.glimpses)
 
-        return cost, -Reinforce, b_loss, reward, max_p_y, train_op_a, train_op_b, train_op_l
+        return cost, -Reinforce, b_loss, reward, max_p_y, train_op_a, train_op_b
 
     def weight_variable(self,shape):
         initial = tf.random_uniform(shape, minval=-0.1, maxval=0.1)
@@ -200,13 +200,15 @@ class RAM():
         return g
 
     def get_next_input(self, output, i):
-        self.mean_loc = self.hard_tanh(tf.matmul(output, self.h_l_out))
-
-        gauss = tf.distributions.Normal(self.mean_loc, self.loc_std)
+        self.mean_loc = self.hard_tanh(tf.matmul(tf.stop_gradient(output), self.h_l_out))
+      #  tf.stop_gradient(self.mean_loc)
         sample_loc = self.mean_loc + tf.cond(self.training, lambda: tf.random_normal(self.mean_loc.get_shape(), 0, self.loc_std), lambda: 0. )
 
         self.loc = self.hard_tanh(sample_loc) * self.pixel_scaling
+
+        gauss = tf.distributions.Normal(self.mean_loc, self.loc_std)
         self.location_list.append(tf.reduce_sum(gauss.log_prob(sample_loc), 1))
+
         return self.Glimpse_Net(self.loc)
 
     def model(self):

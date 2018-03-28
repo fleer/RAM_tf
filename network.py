@@ -113,7 +113,7 @@ class RAM():
         :param Y: Batch of the corresponding labels
         :return: Mean reward, predicted labels
         """
-        feed_dict = {self.inputs_placeholder: X, self.actions: Y, self.training: False}#,
+        feed_dict = {self.inputs_placeholder: X, self.actions: Y, self.training: True}
         fetches = [self.reward, self.predicted_labels]
         reward_fetched, predicted_labels_fetched = self.session.run(fetches, feed_dict=feed_dict)
         return reward_fetched, predicted_labels_fetched
@@ -139,7 +139,7 @@ class RAM():
         :param i: counter
         :return: next glimpse
         """
-        self.mean_loc = self.hard_tanh(tf.matmul(tf.stop_gradient(output), self.h_l_out))
+        self.mean_loc = tf.stop_gradient(self.hard_tanh(tf.matmul(output, self.h_l_out)))
         sample_loc =self.mean_loc + tf.cond(self.training, lambda: tf.random_normal(self.mean_loc.get_shape(), 0, self.loc_std), lambda: 0. )
         # Clip location between [-1,1] and adjust its scale
         self.loc = self.hard_tanh(sample_loc) * self.pixel_scaling
@@ -205,13 +205,19 @@ class RAM():
         # mean reward
         reward = tf.reduce_mean(R_batch)
 
-        #Uses the REINFORCE algorithm in sec 6. p.237-239)
-        # Individual loss for location network
-        # Compute loss via REINFORCE algorithm
-        # for gaussian distribution
+        # REINFORCE algorithm for policy network loss
+        # -------
+        # Williams, Ronald J. "Simple statistical gradient-following
+        # algorithms for connectionist reinforcement learning."
+        # Machine learning 8.3-4 (1992): 229-256.
+        # -------
+        # characteristic eligibility taken from sec 6. p.237-239
+        #
         # d ln(f(m,s,x))   (x - m)
-        # -------------- = -------- with m = mean, x = sample, s = standard_deviation
+        # -------------- = -------- with m = mean, x = sample, s = standard deviation
         #       d m          s**2
+        #
+
         Reinforce = (tf.reduce_mean(self.location_list, axis=0) - self.mean_loc)/(self.loc_std*self.loc_std) * (tf.tile(R,[1,2])-tf.tile(b_ng, [1,2]))
 
         # balances the scale of the two gradient components
@@ -343,19 +349,14 @@ class RAM():
         return zooms
 
     def hard_tanh(self, x):
-        """Segment-wise linear approximation of tanh.
-
-         Faster than tanh.
-         Returns `-1.` if `x < -1.`, `1.` if `x > 1`.
-         In `-1. <= x <= 1.`, returns `x`.
-
-         # Arguments
-             x: A tensor or variable.
-
-         # Returns
-             A tensor.
+        """
+        Segment-wise linear approximation of tanh
+        Faster than standard tanh
+        Returns `-1.` if `x < -1.`, `1.` if `x > 1`
+        In `-1. <= x <= 1.`, returns `x`
+        :param x: A tensor or variable
+        :return: A tensor
          """
-
         lower = tf.convert_to_tensor(-1., x.dtype.base_dtype)
         upper = tf.convert_to_tensor(1., x.dtype.base_dtype)
         x = tf.clip_by_value(x, lower, upper)

@@ -175,7 +175,7 @@ class Experiment():
                 train_accuracy_std = np.sqrt(((train_accuracy_sqrt/num_train_data) - train_accuracy**2)/num_train_data)
 
                 # Print out Infos
-                logging.info("Epoch={:d}: >>> examples/s: {:.2f}, Action-Loss: {:.4f}, Location-Loss: {:.4f}, Baseline-Loss: {:.4f}, "
+                logging.info("Epoch={:d}: >>> examples/s: {:.2f}, Accumulated-Loss: {:.4f}, Location-Loss: {:.4f}, Baseline-Loss: {:.4f}, "
                              "Learning Rate: {:.6f}, Train-Accuracy: {:.4f} +/- {:.6f}, "
                              "Validation-Accuracy: {:.4f} +/- {:.6f}".format(total_epochs,
                                  float(num_train_data)/float(time.time()-start_time), np.mean(a_loss), np.mean(l_loss), np.mean(b_loss),

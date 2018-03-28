@@ -8,7 +8,6 @@ Advances in neural information processing systems. 2014.
 
 Author: Sascha Fleer
 """
-
 from MNIST_experiment import Experiment
 
 class MNIST_DOMAIN_OPTIONS:
@@ -90,19 +89,27 @@ class PARAMETERS:
     #   adadelta
     #   sgd
     OPTIMIZER = 'sgd'
-    # Learning rate alpha
-    LEARNING_RATE = 0.001
-    # Number of steps the Learning rate should (linearly)
-    # decay to MIN_LEARNING_RATE
-    LEARNING_RATE_DECAY = 200
-    # Minimal Learning Rate
-    MIN_LEARNING_RATE = 0.00001
     # Momentum
     MOMENTUM = 0.9
-    # Clipnorm
-    CLIPNORM = 0
-    # Clipvalue
-    CLIPVALUE = 0
+    # Learning rate alpha
+    LEARNING_RATE = 0.01
+    # Decay type for learning rate
+    #   - static
+    #   - linear
+    #   - exponential
+    #   - exponential_staircase
+    LEARNING_RATE_DECAY_TYPE = "linear"
+    # Number of steps the Learning rate should "linearly"
+    # decay to MIN_LEARNING_RATE
+    # For "exponential" decay, the learning rate is updated as
+    # decayed_learning_rate = LEARNING_RATE *
+    #                         LEARNING_RATE_DECAY ^ (step / LEARNING_RATE_DECAY_STEPS)
+    # with integer dvision for "exponential_staircase"
+    LEARNING_RATE_DECAY_STEPS = 400
+    # Only has an effect for "exponential" decay
+    LEARNING_RATE_DECAY = 0.97
+    # Minimal Learning Rate
+    MIN_LEARNING_RATE = 0.0001
 
 
 def main():

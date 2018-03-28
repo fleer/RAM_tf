@@ -63,9 +63,9 @@ class Experiment():
             #   ================
             #   Creating the RAM
             #   ================
-            self.ram = RAM(totalSensorBandwidth, self.batch_size, self.nGlimpses, pixel_scaling, mnist_size, DOMAIN_OPTIONS.CHANNELS, DOMAIN_OPTIONS.SCALING_FACTOR,
+            self.ram = RAM(totalSensorBandwidth, self.batch_size, PARAMETERS.OPTIMIZER, PARAMETERS.MOMENTUM, self.nGlimpses, pixel_scaling, mnist_size, DOMAIN_OPTIONS.CHANNELS, DOMAIN_OPTIONS.SCALING_FACTOR,
                            DOMAIN_OPTIONS.SENSOR, DOMAIN_OPTIONS.DEPTH,
-                           PARAMETERS.LEARNING_RATE, PARAMETERS.LEARNING_RATE_DECAY,
+                           PARAMETERS.LEARNING_RATE, PARAMETERS.LEARNING_RATE_DECAY, PARAMETERS.LEARNING_RATE_DECAY_STEPS, PARAMETERS.LEARNING_RATE_DECAY_TYPE,
                            PARAMETERS.MIN_LEARNING_RATE, DOMAIN_OPTIONS.LOC_STD, sess)
 
             self.saver = tf.train.Saver(max_to_keep=5)

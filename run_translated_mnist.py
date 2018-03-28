@@ -65,7 +65,7 @@ class PARAMETERS:
     #   Number of learning epochs
     MAX_EPOCHS= 2000
     #   Batch size
-    BATCH_SIZE =32
+    BATCH_SIZE = 20
     #   Early stopping
     EARLY_STOPPING = True
     #   Number of Epochs observing the worsening of
@@ -76,8 +76,7 @@ class PARAMETERS:
     #   Save and Load the Model Weights
     #   =========================
     LOAD_MODEL = False
-    MODEL_FILE_PATH = './'
-    MODEL_FILE = 'network.h5'
+    MODEL_FILE_PATH = './Model/'
 
 
     #   =========================
@@ -91,10 +90,22 @@ class PARAMETERS:
     #   sgd
     OPTIMIZER = 'sgd'
     # Learning rate alpha
-    LEARNING_RATE = 0.001
-    # Number of steps the Learning rate should (linearly)
+    LEARNING_RATE = 0.01
+    # Decay type for learning rate
+    #   - static
+    #   - linear
+    #   - exponential
+    #   - exponential_staircase
+    LEARNING_RATE_DECAY_TYPE = "linear"
+    # Number of steps the Learning rate should "linearly"
     # decay to MIN_LEARNING_RATE
-    LEARNING_RATE_DECAY = 800
+    # For "exponential" decay, the learning rate is updated as
+    # decayed_learning_rate = LEARNING_RATE *
+    #                         LEARNING_RATE_DECAY ^ (step / LEARNING_RATE_DECAY_STEPS)
+    # with integer dvision for "exponential_staircase"
+    LEARNING_RATE_DECAY_STEPS = 400
+    # Only has an effect for "exponential" decay
+    LEARNING_RATE_DECAY = 0.97
     # Minimal Learning Rate
     MIN_LEARNING_RATE = 0.0001
     # Momentum
@@ -109,7 +120,6 @@ def main():
     params = PARAMETERS
     dom_opt = MNIST_DOMAIN_OPTIONS
     Experiment(params, dom_opt, "results.json", "network.h5")
-
 
 if __name__ == '__main__':
     main()

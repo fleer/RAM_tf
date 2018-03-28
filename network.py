@@ -45,8 +45,12 @@ class RAM():
         self.pixel_scaling = pixel_scaling
         self.mnist_size = mnist_size
         self.location_list = []
+        self.zoom_list = []
 
+        # Size of Hidden state
+        self.hs_size = 256
 
+        self.learning_rate = tf.placeholder(tf.float32, [])
         # Learning Rate Decay
         if self.lr_decay != 0:
             self.lr_decay_rate = ((lr - min_lr) /
@@ -55,9 +59,10 @@ class RAM():
         self.inputs_placeholder = tf.placeholder(tf.float32, shape=([self.batch_size, self.mnist_size, self.mnist_size, 1]), name="images")
         self.training = tf.placeholder(tf.bool, shape=[])
         #self.inputs_placeholder = tf.placeholder(tf.float32, shape=(self.batch_size, self.totalSensorBandwidth), name="images")
+        self.summary_input = tf.summary.image("State", self.inputs_placeholder, max_outputs=1)
 
-        self.h_l_out = self.weight_variable((256, 2))
-        self.b_l_out = self.weight_variable((256, 1))
+        self.h_l_out = self.weight_variable((self.hs_size, 2))
+        self.b_l_out = self.weight_variable((self.hs_size, 1))
 
 
         self.actions = tf.placeholder(shape=[self.batch_size], dtype=tf.int32)
@@ -67,14 +72,21 @@ class RAM():
         outputs = self.model()
         self.cost_a, self.cost_l, self.cost_b, self.reward, self.predicted_labels, self.train_a, self.train_b = self.calc_reward(outputs)
 
+    def get_images(self, X):
+       img = np.reshape(X, (self.batch_size, self.mnist_size, self.mnist_size, self.channels))
+       feed_dict = {self.inputs_placeholder: img, self.training: True}#,
+       fetches = [self.summary_input, self.summary_zooms]
+       summary_image, summary_zooms = self.session.run(fetches, feed_dict=feed_dict)
+       return summary_image, summary_zooms
+
     def evaluate(self,X,Y):
-        feed_dict = {self.inputs_placeholder: X, self.actions: Y, self.training: False}#,
+        feed_dict = {self.inputs_placeholder: X, self.actions: Y, self.training: True}#,
         fetches = [self.reward, self.predicted_labels]
         reward_fetched, predicted_labels_fetched = self.session.run(fetches, feed_dict=feed_dict)
         return reward_fetched, predicted_labels_fetched
 
     def train(self,X,Y):
-        feed_dict = {self.inputs_placeholder: X, self.actions: Y, self.training: True}#,
+        feed_dict = {self.inputs_placeholder: X, self.actions: Y, self.training: True, self.learning_rate: self.lr}#,
                      #self.actions_onehot: Y}
         fetches = [self.cost_a, self.cost_l, self.cost_b, self.reward, self.predicted_labels, self.train_a, self.train_b]
 
@@ -88,20 +100,23 @@ class RAM():
 
 
     def calc_reward(self, outputs):
-        a_h_out = self.weight_variable((256, 10))
+        a_h_out = self.weight_variable((self.hs_size, 10))
 
         # look at ONLY THE END of the sequence
-        action_out = tf.nn.log_softmax(tf.matmul(tf.reshape(outputs[-1], (self.batch_size, 256)), a_h_out))
+        action_out = tf.nn.log_softmax(tf.matmul(tf.reshape(outputs[-1], (self.batch_size, self.hs_size)), a_h_out))
        # a_pred = []
-       # for o in outputs:
-       #     o = tf.reshape(o, (self.batch_size, 256))
-       #     a_pred.append(tf.nn.log_softmax(tf.matmul(o, a_h_out)))
+        b_pred = []
+        for o in outputs:
+            o = tf.reshape(o, (self.batch_size, self.hs_size))
+           # a_pred.append(tf.nn.log_softmax(tf.matmul(o, a_h_out)))
+            b_pred.append(tf.sigmoid(tf.matmul(o, self.b_l_out)))
        # action_out = tf.reduce_mean(a_pred, axis=0)
+        baseline = tf.reduce_mean(b_pred, axis=0)
 
 
 
         #baseline = tf.nn.sigmoid(tf.matmul(tf.reshape(outputs[-1], (self.batch_size, 256)), self.b_l_out))
-        baseline = tf.matmul(tf.reshape(outputs[-1], (self.batch_size, 256)), self.b_l_out)
+        #baseline = tf.matmul(tf.reshape(outputs[-1], (self.batch_size, self.hs_size)), self.b_l_out)
 
         max_p_y = tf.argmax(action_out, axis=-1)
         correct_y = tf.cast(self.actions, tf.int64)
@@ -114,10 +129,10 @@ class RAM():
         b = tf.reshape(baseline, (self.batch_size, 1))
         b_ng = tf.stop_gradient(b)
 
-        sample_loc = self.mean_loc + tf.random_normal(self.mean_loc.get_shape(), 0, self.loc_std)
-        sample_loc = self.hard_tanh(sample_loc) * self.pixel_scaling
-        Reinforce = (sample_loc - self.mean_loc)/(self.loc_std*self.loc_std) * (tf.tile(R,[1,2])-tf.tile(b_ng, [1,2]))
-        #Reinforce = (self.loc - self.mean_loc)/(self.loc_std*self.loc_std) * (tf.tile(R,[1,2])-tf.tile(b, [1,2]))
+        #sample_loc = self.mean_loc + tf.random_normal(self.mean_loc.get_shape(), 0, self.loc_std)
+        #sample_loc = self.hard_tanh(sample_loc) * self.pixel_scaling
+        #Reinforce = (sample_loc - self.mean_loc)/(self.loc_std*self.loc_std) * (tf.tile(R,[1,2])-tf.tile(b_ng, [1,2]))
+        Reinforce = (tf.reduce_mean(self.location_list, axis=0) - self.mean_loc)/(self.loc_std*self.loc_std) * (tf.tile(R,[1,2])-tf.tile(b_ng, [1,2]))
         ratio = 1.
 
         #responsible_outputs = tf.reduce_sum(action_out * self.actions_onehot, axis=-1)
@@ -129,16 +144,21 @@ class RAM():
         cost = -J
 
         b_loss = tf.losses.mean_squared_error(R, b)
-        optimizer = tf.train.MomentumOptimizer(learning_rate=self.lr, momentum=0.9, use_nesterov=True)
+        #optimizer = tf.train.MomentumOptimizer(learning_rate=self.learning_rate, momentum=0.9, use_nesterov=True)
+        optimizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate)
         train_op_a = optimizer.minimize(cost)
         #train_op_l = optimizer.minimize(-tf.reduce_mean(Reinforce), var_list=[self.h_l_out])
         train_op_b = optimizer.minimize(b_loss, var_list=[self.b_l_out])
 
+        take_first_zoom = []
+        for gl in range(self.glimpses):
+            take_first_zoom.append(self.zoom_list[gl][0])
+        self.summary_zooms = tf.summary.image("Zooms", tf.reshape(take_first_zoom, (self.glimpses, self.sensorBandwidth, self.sensorBandwidth, 1)), max_outputs=self.glimpses)
 
         return cost, -Reinforce, b_loss, reward, max_p_y, train_op_a, train_op_b
 
     def weight_variable(self,shape):
-        initial = tf.random_uniform(shape, minval=-0.1, maxval=0.1)
+        initial = tf.random_uniform(shape, minval=-0.01, maxval=0.01)
         return tf.Variable(initial)
 
     def Glimpse_Net(self, location):
@@ -146,6 +166,8 @@ class RAM():
         g_size = 256
 
         zooms = self.glimpseSensor(location)
+        self.zoom_list.append(zooms[0])
+        zooms = tf.reshape(zooms, (self.batch_size, self.totalSensorBandwidth))
         input_layer = tf.reshape(zooms, [self.batch_size, self.totalSensorBandwidth])
 
         glimpse_hg = self.weight_variable((self.totalSensorBandwidth, hg_size))
@@ -154,16 +176,16 @@ class RAM():
         l_hl = self.weight_variable((2, hl_size))
         hl = tf.nn.relu(tf.matmul(location, l_hl))
 
-        #hg_g = self.weight_variable((hg_size, g_size))
-        #hl_g = self.weight_variable((hl_size, g_size))
-        #g = tf.nn.relu(tf.matmul(hg, hg_g) + tf.matmul(hl, hl_g))
+        hg_g = self.weight_variable((hg_size, g_size))
+        hl_g = self.weight_variable((hl_size, g_size))
+        g = tf.nn.relu(tf.matmul(hg, hg_g) + tf.matmul(hl, hl_g))
 
-        hg_1 = self.weight_variable((hg_size + hl_size, g_size))
-        hg_2 = self.weight_variable((g_size, g_size))
-        concat = tf.concat([hg,hl], axis=-1)
-        g_1 = tf.nn.relu(tf.matmul(concat, hg_1))
-        g = tf.matmul(g_1, hg_2)
-
+#        hg_1 = self.weight_variable((hg_size + hl_size, g_size))
+#        hg_2 = self.weight_variable((g_size, g_size))
+#        concat = tf.concat([hg,hl], axis=-1)
+#        g_1 = tf.nn.relu(tf.matmul(concat, hg_1))
+#        g = tf.matmul(g_1, hg_2)
+#
 
         return g
 
@@ -171,15 +193,16 @@ class RAM():
 
         self.mean_loc = tf.stop_gradient(self.hard_tanh(tf.matmul(output, self.h_l_out)))
 
-        self.loc =tf.stop_gradient(self.mean_loc + tf.cond(self.training, lambda: tf.random_normal(self.mean_loc.get_shape(), 0, self.loc_std), lambda: 0. ))
+        sample_loc =self.mean_loc + tf.cond(self.training, lambda: tf.random_normal(self.mean_loc.get_shape(), 0, self.loc_std), lambda: 0. )
 
-        sample_loc = self.hard_tanh(self.loc) * self.pixel_scaling
-        self.location_list.append(sample_loc)
-        return self.Glimpse_Net(sample_loc)
+        self.loc = self.hard_tanh(sample_loc) * self.pixel_scaling
+        self.location_list.append(self.loc)
+        return self.Glimpse_Net(self.loc)
 
     def model(self):
         self.location_list = []
-        lstm_cell = tf.nn.rnn_cell.BasicLSTMCell(256, activation=tf.nn.relu, state_is_tuple=True)
+        self.zoom_list = []
+        lstm_cell = tf.nn.rnn_cell.BasicLSTMCell(self.hs_size, activation=tf.nn.relu, state_is_tuple=True)
 
         initial_state = lstm_cell.zero_state(self.batch_size, tf.float32)
         #initial_loc = self.hard_tanh(tf.matmul(self.rnn_cell, self.h_l_out))
@@ -258,7 +281,7 @@ class RAM():
         #  assert len(shapes) == 1, "zooms have different shapes: {}".format(zooms)
         zooms = tf.stack(zooms)
 
-        return tf.reshape(zooms, (self.batch_size, self.totalSensorBandwidth))
+        return zooms
 
     def hard_tanh(self, x):
         """Segment-wise linear approximation of tanh.

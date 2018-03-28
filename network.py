@@ -39,53 +39,67 @@ class RAM():
         self.channels = channels # grayscale
         self.scaling = scaling_factor # zooms -> scaling * 2**<depth_level>
         self.sensorBandwidth = sensorResolution # fixed resolution of sensor
-        self.depth = zooms# zooms
-
-        self.output_dim = 10
+        self.depth = zooms # zooms
+        self.output_dim = 10 # number of classes
         self.totalSensorBandwidth = totalSensorBandwidth
         self.batch_size = batch_size
         self.glimpses = glimpses
+
+        # Learning Rate
         self.min_lr = min_lr
         self.lr_decay_rate = lr_decay
         self.lr_decay_steps = lr_decay_steps
         self.lr_decay_type = lr_decay_type
         self.lr = lr
-        self.loc_std = loc_std
-        self.pixel_scaling = pixel_scaling
-        self.mnist_size = mnist_size
-        self.location_list = []
-        self.zoom_list = []
         self.step = 0
+
+        # Learning
         self.optimizer = optimizer
         self.momentum = momentum
 
+        # Location Policy Network
+        self.loc_std = loc_std
+        self.pixel_scaling = pixel_scaling
+        self.mnist_size = mnist_size
+
+        self.location_list = []
+        self.zoom_list = []
+
         # Size of Hidden state
         self.hs_size = 256
-
-
 
         # Learning Rate Decay
         if lr_decay_steps != 0 and self.lr_decay_type == "linear":
             self.lr_decay_rate = ((lr - min_lr) /
                                   lr_decay_steps)
 
+        # Tensorflow Placeholder
         self.inputs_placeholder = tf.placeholder(tf.float32, shape=([self.batch_size, self.mnist_size, self.mnist_size, 1]), name="images")
-        self.training = tf.placeholder(tf.bool, shape=[])
-        self.learning_rate = tf.placeholder(tf.float32, shape=[])
-        self.summary_input = tf.summary.image("State", self.inputs_placeholder, max_outputs=1)
-
-        self.h_l_out = self.weight_variable((self.hs_size, 2))
-        self.b_l_out = self.weight_variable((self.hs_size, 1))
-
-
         self.actions = tf.placeholder(shape=[self.batch_size], dtype=tf.int32)
         self.actions_onehot = tf.one_hot(self.actions, 10, dtype=tf.float32)
 
+        # If training --> False, only mean of location policy is used
+        self.training = tf.placeholder(tf.bool, shape=[])
 
+        self.learning_rate = tf.placeholder(tf.float32, shape=[])
+        self.summary_input = tf.summary.image("State", self.inputs_placeholder, max_outputs=1)
+
+        # Global weights
+        self.h_l_out = self.weight_variable((self.hs_size, 2))
+        self.b_l_out = self.weight_variable((self.hs_size, 1))
+
+        # Create Model
         outputs = self.model()
+
+        # Get Model output & train
         self.cost_a, self.cost_l, self.cost_b, self.reward, self.predicted_labels, self.train_a, self.train_b = self.loss(outputs)
 
     def get_images(self, X):
+        """
+        Get the glimpses created by the location policy network
+        :param X: Input images
+        :return: Tensorboard summary of the images and the corresponding glimpses
+        """
         img = np.reshape(X, (self.batch_size, self.mnist_size, self.mnist_size, self.channels))
         feed_dict = {self.inputs_placeholder: img, self.training: False}#,
         fetches = [self.summary_input, self.summary_zooms]
@@ -93,79 +107,104 @@ class RAM():
         return summary_image, summary_zooms
 
     def evaluate(self,X,Y):
+        """
+        Evaluate the performance of the network
+        :param X: Batch of images
+        :param Y: Batch of the corresponding labels
+        :return: Mean reward, predicted labels
+        """
         feed_dict = {self.inputs_placeholder: X, self.actions: Y, self.training: False}#,
         fetches = [self.reward, self.predicted_labels]
         reward_fetched, predicted_labels_fetched = self.session.run(fetches, feed_dict=feed_dict)
         return reward_fetched, predicted_labels_fetched
 
     def train(self,X,Y):
-        feed_dict = {self.inputs_placeholder: X, self.actions: Y, self.training: True, self.learning_rate: self.lr}#,
-                     #self.actions_onehot: Y}
+        """
+        Train the network
+        :param X: Batch of images
+        :param Y: Batch of the corresponding labels
+        :return: Mean reward, predicted labels, accumulated loss, location policy loss, baseline loss
+        """
+        feed_dict = {self.inputs_placeholder: X, self.actions: Y, self.training: True, self.learning_rate: self.lr}
         fetches = [self.cost_a, self.cost_l, self.cost_b, self.reward, self.predicted_labels, self.train_a, self.train_b]
-
         results = self.session.run(fetches, feed_dict=feed_dict)
-
         cost_a_fetched, cost_l_fetched, cost_b_fetched, reward_fetched, prediction_labels_fetched, \
         train_a_fetched, train_b_fetched = results
-
         return reward_fetched, prediction_labels_fetched, cost_a_fetched, cost_l_fetched, cost_b_fetched
 
     def get_next_input(self, output, i):
-
-        self.mean_loc = tf.stop_gradient(self.hard_tanh(tf.matmul(output, self.h_l_out)))
-
+        """
+        Loop function of recurrent attention network
+        :param output: hidden state of recurrent network
+        :param i: counter
+        :return: next glimpse
+        """
+        self.mean_loc = self.hard_tanh(tf.matmul(tf.stop_gradient(output), self.h_l_out))
         sample_loc =self.mean_loc + tf.cond(self.training, lambda: tf.random_normal(self.mean_loc.get_shape(), 0, self.loc_std), lambda: 0. )
-
+        # Clip location between [-1,1] and adjust its scale
         self.loc = self.hard_tanh(sample_loc) * self.pixel_scaling
         self.location_list.append(self.loc)
         return self.Glimpse_Net(self.loc)
 
     def model(self):
+        """
+        Core Network of the RAM
+        :return: Sequence of hidden states of the RNN
+        """
         self.location_list = []
         self.zoom_list = []
+        # Create LSTM Cell
         lstm_cell = tf.nn.rnn_cell.BasicLSTMCell(self.hs_size, activation=tf.nn.relu, state_is_tuple=True)
-
         initial_state = lstm_cell.zero_state(self.batch_size, tf.float32)
 
+        # Initial location mean generated by initial hidden state of RNN
         initial_loc = self.hard_tanh(tf.matmul(initial_state[0], self.h_l_out))
         sample_loc = initial_loc + tf.cond(self.training, lambda: tf.random_normal(initial_loc.get_shape(), 0, self.loc_std), lambda: 0.)
-
         loc = self.hard_tanh(sample_loc) *self.pixel_scaling
         self.location_list.append(loc)
 
+        # Compute initial glimpse
         initial_glimpse = self.Glimpse_Net(loc)
-
 
         inputs = [initial_glimpse]
         inputs.extend([0] * (self.glimpses - 1))
-
         outputs, _ = seq2seq.rnn_decoder(inputs, initial_state, lstm_cell, loop_function=self.get_next_input)
 
         return outputs
 
 
     def loss(self, outputs):
-        a_h_out = self.weight_variable((self.hs_size, 10))
-
-        # look at ONLY THE END of the sequence
-        action_out = tf.nn.log_softmax(tf.matmul(tf.reshape(outputs[-1], (self.batch_size, self.hs_size)), a_h_out))
-
+        """
+        Get classification and compute losses
+        :param outputs: Sequence of hidden states of the RNN
+        :return: accumulated loss, location policy loss, baseline loss, mean reward, predicted labels,
+         gradient of hybrid loss, gradient of baseline loss
+        """
         # Use mean baseline of all glimpses
         b_pred = []
         for o in outputs:
             o = tf.reshape(o, (self.batch_size, self.hs_size))
             b_pred.append(tf.sigmoid(tf.matmul(o, self.b_l_out)))
         baseline = tf.reduce_mean(b_pred, axis=0)
+        b = tf.reshape(baseline, (self.batch_size, 1))
+        # Stop gradient as the baseline is trained separately
+        b_ng = tf.stop_gradient(b)
+
+        # Initialize weights of action network
+        a_h_out = self.weight_variable((self.hs_size, 10))
+
+        # look at ONLY THE END of the sequence to predict label
+        action_out = tf.nn.log_softmax(tf.matmul(tf.reshape(outputs[-1], (self.batch_size, self.hs_size)), a_h_out))
         max_p_y = tf.argmax(action_out, axis=-1)
         correct_y = tf.cast(self.actions, tf.int64)
 
-        R_batch = tf.cast(tf.equal(max_p_y, correct_y), tf.float32)  # reward per example
-
-        reward = tf.reduce_mean(R_batch)  # overall reward
-
+        # reward per example
+        R_batch = tf.cast(tf.equal(max_p_y, correct_y), tf.float32)
         R = tf.reshape(R_batch, (self.batch_size, 1))
-        b = tf.reshape(baseline, (self.batch_size, 1))
-        b_ng = tf.stop_gradient(b)
+
+        # mean reward
+        reward = tf.reduce_mean(R_batch)
+
 
         Reinforce = (tf.reduce_mean(self.location_list, axis=0) - self.mean_loc)/(self.loc_std*self.loc_std) * (tf.tile(R,[1,2])-tf.tile(b_ng, [1,2]))
         ratio = 1.

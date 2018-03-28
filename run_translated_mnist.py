@@ -119,7 +119,7 @@ class PARAMETERS:
 def main():
     params = PARAMETERS
     dom_opt = MNIST_DOMAIN_OPTIONS
-    Experiment(params, dom_opt, "results.json", "network.h5")
+    Experiment(params, dom_opt)
 
 if __name__ == '__main__':
     main()

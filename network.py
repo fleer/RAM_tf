@@ -46,6 +46,7 @@ class RAM():
         self.mnist_size = mnist_size
         self.location_list = []
         self.zoom_list = []
+        self.step = 0
 
         # Size of Hidden state
         self.hs_size = 256
@@ -322,5 +323,8 @@ class RAM():
         :return: New learning rate
         """
         # Linear Learning Rate Decay
-        self.lr = max(self.min_lr, self.lr - self.lr_decay_rate)
+        #self.lr = max(self.min_lr, self.lr - self.lr_decay_rate)
+        self.lr = max(self.min_lr, self.lr * (self.lr_decay ** self.step))
+        self.step += 1
+
         return self.lr

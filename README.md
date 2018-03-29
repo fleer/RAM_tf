@@ -39,7 +39,7 @@ saved. It can be loaded for further training or evaluation.
 
 ## Evaluation
 During training information about the current losses, accuracy 
-and the behavior of the location network can be viewed using `tensorboard`. 
+and the behavior of the location network can be gathered using `tensorboard`. 
 ```
 tensorboard --logdir=./summary
 ```

@@ -89,6 +89,8 @@ class PARAMETERS:
     #   adadelta
     #   sgd
     OPTIMIZER = 'sgd'
+    # Momentum
+    MOMENTUM = 0.9
     # Learning rate alpha
     LEARNING_RATE = 0.01
     # Decay type for learning rate
@@ -108,12 +110,6 @@ class PARAMETERS:
     LEARNING_RATE_DECAY = 0.97
     # Minimal Learning Rate
     MIN_LEARNING_RATE = 0.0001
-    # Momentum
-    MOMENTUM = 0.9
-    # Clipnorm
-    CLIPNORM = 0
-    # Clipvalue
-    CLIPVALUE = 0
 
 
 def main():

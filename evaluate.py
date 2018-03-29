@@ -188,9 +188,10 @@ with tf.Session() as sess:
     #   ================
     #   Creating the RAM
     #   ================
-    ram = RAM(totalSensorBandwidth, batch_size, nGlimpses, pixel_scaling, mnist_size, MNIST_DOMAIN_OPTIONS.CHANNELS, MNIST_DOMAIN_OPTIONS.SCALING_FACTOR,
+    ram = RAM(totalSensorBandwidth, batch_size, PARAMETERS.OPTIMIZER, PARAMETERS.MOMENTUM, nGlimpses, pixel_scaling, mnist_size, MNIST_DOMAIN_OPTIONS.CHANNELS, MNIST_DOMAIN_OPTIONS.SCALING_FACTOR,
                    MNIST_DOMAIN_OPTIONS.SENSOR, MNIST_DOMAIN_OPTIONS.DEPTH,
                    PARAMETERS.LEARNING_RATE, PARAMETERS.LEARNING_RATE_DECAY,
+                   PARAMETERS.LEARNING_RATE_DECAY_STEPS, PARAMETERS.LEARNING_RATE_DECAY_TYPE,
                    PARAMETERS.MIN_LEARNING_RATE, MNIST_DOMAIN_OPTIONS.LOC_STD, sess)
 
     saver = tf.train.Saver(max_to_keep=5)
@@ -200,7 +201,7 @@ with tf.Session() as sess:
             ckpt = tf.train.get_checkpoint_state('./' + sys.argv[2])
             saver.restore(sess, ckpt.model_checkpoint_path)
             #saver.restore(sess, './', sys.argv[2])
-            print("Loaded wights from " + sys.argv[2] + "!")
+            print("Loaded weights from " + sys.argv[2] + "!")
         except:
             print("Weights from " + sys.argv[2] +
                   " could not be loaded!")

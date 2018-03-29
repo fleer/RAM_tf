@@ -19,10 +19,9 @@ The code is inspired by [3] & [4].
 **Required packages:**
 1. [Numpy](http://www.numpy.org/)
 2. [Tensorflow](https://www.tensorflow.org/)
-3. [Keras](https://keras.io/)
-4. [OpenCv](https://opencv.org/)
-5. [Matplotlib](http://matplotlib.org/) for plotting
-6. [H5Py](http://www.h5py.org/) for saving the trained network weights
+3. [OpenCv](https://opencv.org/) for evaluation
+4. [Matplotlib](http://matplotlib.org/) for plotting
+5. [H5Py](http://www.h5py.org/) for saving the trained network weights
 
 Install the packages via `pip`.
 
@@ -34,12 +33,17 @@ pip install numpy tensorflow opencv-python matplotlib json
 The parameters for the training are all defined in the configuration files 
 `run_mnist.py` and `run_translated_mnist.py`.
 
-In the `main()` function, the number of distinct training processes can be specified.
 
 After training, the network-model is 
 saved. It can be loaded for further training or evaluation.
 
 ## Evaluation
+During training information about the current losses, accuracy 
+and the behavior of the location network can be viewed using `tensorboard`. 
+```
+tensorboard --logdir=./summary
+```
+
 To create images of the glimpses that the network uses after training, simply execute the evaluation script.
 The first parameter is the name of the configuration file and the second is the path to the network model.
 ```
@@ -59,7 +63,7 @@ python run_mnist.py
 ```
 The chosen parameters are the same as in [4].
 
-**Current Highscore:  97.2% +/- 0.165 accuracy on the MNIST test-dataset.**
+**Current Highscore:  98.09% +/- 0.137 accuracy on the MNIST test-dataset.**
 
 The plot below shows the accuracy for the test-dataset over the number of trained epochs. 
 ![Example](./MNIST_Results/MNIST_accuracy.png)

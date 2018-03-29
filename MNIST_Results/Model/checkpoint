@@ -1,6 +1,0 @@
-model_checkpoint_path: "best_model-435.cptk"
-all_model_checkpoint_paths: "../Model-100"
-all_model_checkpoint_paths: "../Model-200"
-all_model_checkpoint_paths: "../Model-300"
-all_model_checkpoint_paths: "../Model-400"
-all_model_checkpoint_paths: "best_model-435.cptk"

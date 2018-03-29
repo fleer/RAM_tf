@@ -75,30 +75,6 @@ Examples of the images and the corresponding glimpses used by the network are di
 |<img src="./MNIST_Results/Images/symbol_0.png" alt="Symbol0" width="140">|<img src="./MNIST_Results/Images/symbol_0_glimpse_0_zoom_1.png" alt="Glimpse0" width="140">|<img src="./MNIST_Results/Images/symbol_0_glimpse_1_zoom_1.png" alt="Glimpse1" width="140">|<img src="./MNIST_Results/Images/symbol_0_glimpse_2_zoom_1.png" alt="Glimpse2" width="140">|<img src="./MNIST_Results/Images/symbol_0_glimpse_3_zoom_1.png" alt="Glimpse3" width="140">|
 |<img src="./MNIST_Results/Images/symbol_1.png" alt="Symbol1" width="140">|<img src="./MNIST_Results/Images/symbol_1_glimpse_0_zoom_1.png" alt="Glimpse0" width="140">|<img src="./MNIST_Results/Images/symbol_1_glimpse_1_zoom_1.png" alt="Glimpse1" width="140">|<img src="./MNIST_Results/Images/symbol_1_glimpse_2_zoom_1.png" alt="Glimpse2" width="140">|<img src="./MNIST_Results/Images/symbol_1_glimpse_3_zoom_1.png" alt="Glimpse3" width="140">|
 
-
-## Classification of the translated MNIST dataset
-In [1], the network is tested on non-centered digits. 
-Therefore, the digits forming the MNIST dataset are incorporated into a
-larger image patch and then randomly translated.  
-
-To train the network on classifying the "translated" MNIST dataset, 
-start the code via the corresponding configuration file:
-```
-python run_translated_mnist.py
-```
-The chosen parameters are the same as in [4].
-
-**Current Highscore:  90.52% +/- 0.2929 accuracy on the translated MNIST test-dataset.**
-
-The plot below shows the accuracy for the test-dataset over the number of trained epochs. 
-![Example](./MNIST_translated_Results/MNIST_translated_accuracy.png)
-
-Examples of the images and the corresponding glimpses used by the network are displayed in the table.
- 
-|Originial Image | Glimpse 0| Glimpse 1| Glimpse 2 |Glimpse 3|
-|:--:|:--:|:--:|:--:|:--:|
-|<img src="./MNIST_translated_Results/Images/symbol_0.png" alt="Symbol0" width="140">|<img src="./MNIST_translated_Results/Images/symbol_0_glimpse_0.gif" alt="Glimpse0" width="140">|<img src="./MNIST_translated_Results/Images/symbol_0_glimpse_1.gif" alt="Glimpse1" width="140">|<img src="./MNIST_translated_Results/Images/symbol_0_glimpse_2.gif" alt="Glimpse2" width="140">|<img src="./MNIST_translated_Results/Images/symbol_0_glimpse_3.gif" alt="Glimpse3" width="140">|
-|<img src="./MNIST_translated_Results/Images/symbol_1.png" alt="Symbol1" width="140">|<img src="./MNIST_translated_Results/Images/symbol_1_glimpse_0.gif" alt="Glimpse0" width="140">|<img src="./MNIST_translated_Results/Images/symbol_1_glimpse_1.gif" alt="Glimpse1" width="140">|<img src="./MNIST_translated_Results/Images/symbol_1_glimpse_2.gif" alt="Glimpse2" width="140">|<img src="./MNIST_translated_Results/Images/symbol_1_glimpse_3.gif" alt="Glimpse3" width="140">|
 --------
 [1] Mnih, Volodymyr, Nicolas Heess, and Alex Graves. "Recurrent models of visual attention." Advances in neural information processing systems. 2014.
 

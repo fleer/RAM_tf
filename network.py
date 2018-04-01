@@ -114,7 +114,7 @@ class RAM():
         :param Y: Batch of the corresponding labels
         :return: Mean reward, predicted labels
         """
-        feed_dict = {self.inputs_placeholder: X, self.actions: Y, self.training: True}
+        feed_dict = {self.inputs_placeholder: X, self.actions: Y, self.training: False}
         fetches = [self.reward, self.predicted_labels]
         reward_fetched, predicted_labels_fetched = self.session.run(fetches, feed_dict=feed_dict)
         return reward_fetched, predicted_labels_fetched

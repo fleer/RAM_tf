@@ -41,7 +41,7 @@ class MNIST_DOMAIN_OPTIONS:
     # Number of Glimpses
     NGLIMPSES = 7
     # Standard Deviation of the Location Policy
-    LOC_STD = 0.03
+    LOC_STD = 0.22
     # Defines how far the center of the glimpse
     # can reach the borders
     # UNIT_PIXELS = 13 --> g_c \in [2,27] for 28x28x1 images
@@ -65,7 +65,7 @@ class PARAMETERS:
     #   Number of learning epochs
     MAX_EPOCHS= 2000
     #   Batch size
-    BATCH_SIZE = 20
+    BATCH_SIZE = 64
     #   Early stopping
     EARLY_STOPPING = True
     #   Number of Epochs observing the worsening of
@@ -88,7 +88,7 @@ class PARAMETERS:
     #   adam
     #   adadelta
     #   sgd
-    OPTIMIZER = 'sgd'
+    OPTIMIZER = 'adam'
     # Learning rate alpha
     LEARNING_RATE = 0.01
     # Decay type for learning rate
@@ -96,7 +96,7 @@ class PARAMETERS:
     #   - linear
     #   - exponential
     #   - exponential_staircase
-    LEARNING_RATE_DECAY_TYPE = "linear"
+    LEARNING_RATE_DECAY_TYPE = "exponential"
     # Number of steps the Learning rate should "linearly"
     # decay to MIN_LEARNING_RATE
     # For "exponential" decay, the learning rate is updated as

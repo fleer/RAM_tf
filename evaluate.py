@@ -231,7 +231,7 @@ with tf.Session() as sess:
         plt.pause(.25)
 
     feed_dict = {ram.inputs_placeholder: X, ram.actions: Y, ram.training: False}#,
-    fetches = [ram.reward, ram.predicted_labels, ram.location_list]
+    fetches = [ram.reward, ram.predicted_probs, ram.location_list]
     reward_fetched, predicted_labels_fetched, loc_list = sess.run(fetches, feed_dict=feed_dict)
 
     for n in range(nGlimpses):

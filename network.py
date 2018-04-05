@@ -93,7 +93,7 @@ class RAM():
         outputs = self.model()
 
         # Get Model output & train
-        self.cost_a, self.cost_l, self.cost_b, self.reward, self.predicted_labels, self.train_a, self.train_b = self.loss(outputs)
+        self.cost_a, self.cost_l, self.cost_b, self.reward, self.predicted_probs, self.train_a, self.train_b = self.loss(outputs)
 
     def get_images(self, X):
         """
@@ -114,8 +114,8 @@ class RAM():
         :param Y: Batch of the corresponding labels
         :return: Mean reward, predicted labels
         """
-        feed_dict = {self.inputs_placeholder: X, self.actions: Y, self.training: False}
-        fetches = [self.reward, self.predicted_labels]
+        feed_dict = {self.inputs_placeholder: X, self.actions: Y, self.training: True}
+        fetches = [self.reward, self.predicted_probs]
         reward_fetched, predicted_labels_fetched = self.session.run(fetches, feed_dict=feed_dict)
         return reward_fetched, predicted_labels_fetched
 
@@ -127,7 +127,7 @@ class RAM():
         :return: Mean reward, predicted labels, accumulated loss, location policy loss, baseline loss
         """
         feed_dict = {self.inputs_placeholder: X, self.actions: Y, self.training: True, self.learning_rate: self.lr}
-        fetches = [self.cost_a, self.cost_l, self.cost_b, self.reward, self.predicted_labels, self.train_a, self.train_b]
+        fetches = [self.cost_a, self.cost_l, self.cost_b, self.reward, self.predicted_probs, self.train_a, self.train_b]
         results = self.session.run(fetches, feed_dict=feed_dict)
         cost_a_fetched, cost_l_fetched, cost_b_fetched, reward_fetched, prediction_labels_fetched, \
         train_a_fetched, train_b_fetched = results
@@ -228,6 +228,8 @@ class RAM():
 
         loc = tf.transpose(tf.stack(self.location_list),perm=[1,0])
         mean_loc = tf.transpose(tf.stack(self.location_mean_list),perm=[1,0,])
+        #TODO: Remove the summation of 2D Location while appending to list and evaluate the characteristic elegibility indiviually for each dimension
+
         Reinforce = tf.reduce_mean((loc - mean_loc)/(self.loc_std*self.loc_std) * (R-b_ng))
 
         # balances the scale of the two gradient components
@@ -263,7 +265,7 @@ class RAM():
             take_first_zoom.append(self.glimpses_list[gl][0])
         self.summary_zooms = tf.summary.image("Zooms", tf.reshape(take_first_zoom, (self.glimpses, self.sensorBandwidth, self.sensorBandwidth, 1)), max_outputs=self.glimpses)
 
-        return cost, -Reinforce, b_loss, reward, max_p_y, train_op_a, train_op_b
+        return cost, -Reinforce, b_loss, reward, action_out, train_op_a, train_op_b
 
     def weight_variable(self,shape):
         """
@@ -272,7 +274,7 @@ class RAM():
         :param shape: Desired shape
         :return: Tensorflow variable
         """
-        initial = tf.random_uniform(shape, minval=-0.01, maxval=0.01)
+        initial = tf.random_uniform(shape, minval=-0.1, maxval=0.1)
         return tf.Variable(initial)
 
     def Glimpse_Net(self, location):
@@ -386,8 +388,6 @@ class RAM():
         elif self.lr_decay_type == "exponential_staircase":
             # Exponential Learning Rate Decay
             self.lr = max(self.min_lr, self.lr * (self.lr_decay_rate ** (int(self.step) // int(self.lr_decay_steps))))
-            print(int(self.step) // int(self.lr_decay_steps))
-
         self.step += 1
 
         return self.lr

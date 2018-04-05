@@ -22,22 +22,36 @@ class MNIST():
         X, Y = self.dataset.train.next_batch(batch_size)
         if self.translate:
            X, _ = self.convertTranslated(X, self.translated_mnist_size, self.mnist_size, batch_size)
-        X = np.reshape(X, (self.batch_size, self.mnist_size, self.mnist_size, 1))
+        M=10
+        # duplicate M times, to get M Monte-Carlo Samples of location during forward pass
+        X = np.tile(X, [M, 1])
+        Y = np.tile(Y, [M])
+        X = np.reshape(X, (self.batch_size*M, self.mnist_size, self.mnist_size, 1))
         return X,Y
 
     def get_batch_test(self, batch_size):
         X, Y = self.dataset.test.next_batch(batch_size)
         if self.translate:
             X, _ = self.convertTranslated(X, self.translated_mnist_size, self.mnist_size, batch_size)
-        X = np.reshape(X, (self.batch_size, self.mnist_size, self.mnist_size, 1))
-        return X,Y
+        M=10
+        # duplicate M times, to get M Monte-Carlo Samples of location during forward pass
+        # TODO: Cite
+        X = np.tile(X, [M, 1])
+        Y_M = np.tile(Y, [M])
+        X = np.reshape(X, (self.batch_size*M, self.mnist_size, self.mnist_size, 1))
+        return X,Y_M,Y
 
     def get_batch_validation(self, batch_size):
         X, Y = self.dataset.validation.next_batch(batch_size)
         if self.translate:
             X, _ = self.convertTranslated(X, self.translated_mnist_size, self.mnist_size, batch_size)
-        X = np.reshape(X, (self.batch_size, self.mnist_size, self.mnist_size, 1))
-        return X,Y
+        M=10
+        # duplicate M times, to get M Monte-Carlo Samples of location during forward pass
+        # TODO: Cite
+        X = np.tile(X, [M, 1])
+        Y_M = np.tile(Y, [M])
+        X = np.reshape(X, (self.batch_size*M, self.mnist_size, self.mnist_size, 1))
+        return X,Y_M,Y
 
 
     def convertTranslated(self, images, initImgSize, finalImgSize, batch_size):

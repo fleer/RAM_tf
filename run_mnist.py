@@ -39,9 +39,9 @@ class MNIST_DOMAIN_OPTIONS:
     # Scaling Factor of zooms
     SCALING_FACTOR = 2
     # Number of Glimpses
-    NGLIMPSES = 7
+    NGLIMPSES = 6
     # Standard Deviation of the Location Policy
-    LOC_STD = 0.03
+    LOC_STD = 0.22
     # Defines how far the center of the glimpse
     # can reach the borders
     # UNIT_PIXELS = 13 --> g_c \in [2,27] for 28x28x1 images
@@ -65,7 +65,7 @@ class PARAMETERS:
     #   Number of learning epochs
     MAX_EPOCHS= 2000
     #   Batch size
-    BATCH_SIZE = 20
+    BATCH_SIZE = 64
     #   Early stopping
     EARLY_STOPPING = True
     #   Number of Epochs observing the worsening of
@@ -88,24 +88,24 @@ class PARAMETERS:
     #   adam
     #   adadelta
     #   sgd
-    OPTIMIZER = 'sgd'
+    OPTIMIZER = 'adam'
     # Momentum
     MOMENTUM = 0.9
     # Learning rate alpha
-    LEARNING_RATE = 0.01
+    LEARNING_RATE = 0.001
     # Decay type for learning rate
     #   - static
     #   - linear
     #   - exponential
     #   - exponential_staircase
-    LEARNING_RATE_DECAY_TYPE = "linear"
+    LEARNING_RATE_DECAY_TYPE = "exponential_staircase"
     # Number of steps the Learning rate should "linearly"
     # decay to MIN_LEARNING_RATE
     # For "exponential" decay, the learning rate is updated as
     # decayed_learning_rate = LEARNING_RATE *
     #                         LEARNING_RATE_DECAY ^ (step / LEARNING_RATE_DECAY_STEPS)
     # with integer dvision for "exponential_staircase"
-    LEARNING_RATE_DECAY_STEPS = 400
+    LEARNING_RATE_DECAY_STEPS = 1
     # Only has an effect for "exponential" decay
     LEARNING_RATE_DECAY = 0.97
     # Minimal Learning Rate

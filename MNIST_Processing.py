@@ -7,7 +7,7 @@ class MNIST():
     The Code for creating the glimpses is based on https://github.com/jlindsey15/RAM
     """
 
-    def __init__(self, mnist_size, batch_size, translate, translated_mnist_size):
+    def __init__(self, mnist_size, batch_size, translate, translated_mnist_size, monte_carlo_samples):
 
         self.mnist_size = mnist_size
         self.batch_size = batch_size
@@ -18,41 +18,33 @@ class MNIST():
             self.translated_mnist_size = mnist_size
             self.mnist_size = translated_mnist_size
 
-    def get_batch_train(self, batch_size):
-        X, Y = self.dataset.train.next_batch(batch_size)
+        self.M = monte_carlo_samples
+
+    def get_batch(self, batch_size, data_type="train"):
+        if data_type == "train":
+            X, Y = self.dataset.train.next_batch(batch_size)
+        elif data_type == "validation":
+            X, Y = self.dataset.validation.next_batch(batch_size)
+        elif data_type == "test":
+            X, Y = self.dataset.test.next_batch(batch_size)
+        else:
+            print("Wrong data_type: " + str(data_type) + "!")
+            return 0
         if self.translate:
            X, _ = self.convertTranslated(X, self.translated_mnist_size, self.mnist_size, batch_size)
-        M=10
-        # duplicate M times, to get M Monte-Carlo Samples of location during forward pass
-        X = np.tile(X, [M, 1])
-        Y = np.tile(Y, [M])
-        X = np.reshape(X, (self.batch_size*M, self.mnist_size, self.mnist_size, 1))
+        # duplicate M times, to get M Monte-Carlo Samples of the location during forward pass
+        # -----------------------------------
+        # Ba, J. L., Mnih, V., Deepmind, G., & Kavukcuoglu, K. (n.d.).
+        # MULTIPLE OBJECT RECOGNITION WITH VISUAL ATTENTION.
+        # Retrieved from https://arxiv.org/pdf/1412.7755.pdf
+        # -----------------------------------
+        # See Eq. (9), (10)
+        # As the the location prediction is stochastic, the attention model can be
+        # evaluated multiple times on the same sample.
+        X = np.tile(X, [self.M, 1])
+        Y = np.tile(Y, [self.M])
+        X = np.reshape(X, (self.batch_size*self.M, self.mnist_size, self.mnist_size, 1))
         return X,Y
-
-    def get_batch_test(self, batch_size):
-        X, Y = self.dataset.test.next_batch(batch_size)
-        if self.translate:
-            X, _ = self.convertTranslated(X, self.translated_mnist_size, self.mnist_size, batch_size)
-        M=10
-        # duplicate M times, to get M Monte-Carlo Samples of location during forward pass
-        # TODO: Cite
-        X = np.tile(X, [M, 1])
-        Y_M = np.tile(Y, [M])
-        X = np.reshape(X, (self.batch_size*M, self.mnist_size, self.mnist_size, 1))
-        return X,Y_M,Y
-
-    def get_batch_validation(self, batch_size):
-        X, Y = self.dataset.validation.next_batch(batch_size)
-        if self.translate:
-            X, _ = self.convertTranslated(X, self.translated_mnist_size, self.mnist_size, batch_size)
-        M=10
-        # duplicate M times, to get M Monte-Carlo Samples of location during forward pass
-        # TODO: Cite
-        X = np.tile(X, [M, 1])
-        Y_M = np.tile(Y, [M])
-        X = np.reshape(X, (self.batch_size*M, self.mnist_size, self.mnist_size, 1))
-        return X,Y_M,Y
-
 
     def convertTranslated(self, images, initImgSize, finalImgSize, batch_size):
         size_diff = finalImgSize - initImgSize

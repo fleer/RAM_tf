@@ -62,6 +62,7 @@ class RAM():
         self.pixel_scaling = pixel_scaling
         self.mnist_size = mnist_size
 
+        self.eval_location_list = []
         self.location_list = []
         self.location_mean_list = []
         self.glimpses_list = []
@@ -147,6 +148,7 @@ class RAM():
 
         self.location_mean_list.append(tf.reduce_sum(mean_loc,1))
         self.location_list.append(tf.reduce_sum(sample_loc,1))
+        self.eval_location_list.append(loc)
 
         return self.Glimpse_Net(loc)
 
@@ -169,6 +171,7 @@ class RAM():
 
         self.location_mean_list.append(tf.reduce_sum(initial_loc,1))
         self.location_list.append(tf.reduce_sum(sample_loc,1))
+        self.eval_location_list.append(loc)
 
         # Compute initial glimpse
         initial_glimpse = self.Glimpse_Net(loc)
@@ -256,6 +259,7 @@ class RAM():
         else:
             raise ValueError("unrecognized update: {}".format(self.optimizer))
 
+        # TODO: Implement gradient clipping
         train_op_a = trainer.minimize(cost)
         train_op_b = trainer.minimize(b_loss, var_list=[self.b_l_out])
 

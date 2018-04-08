@@ -50,6 +50,10 @@ class MNIST_DOMAIN_OPTIONS:
     TRANSLATE = True
     # Size of each image: MNIST_SIZE x MNIST_SIZE
     TRANSLATED_MNIST_SIZE = 60
+    # Number of Monte-Carlo Samples of the location policy,
+    # that should be created for each image
+    # 1 sample --> Only one evaluation per image
+    MONTE_CARLO = 1
 
 class PARAMETERS:
     """
@@ -89,8 +93,10 @@ class PARAMETERS:
     #   adadelta
     #   sgd
     OPTIMIZER = 'adam'
+    # Momentum
+    MOMENTUM = 0.9
     # Learning rate alpha
-    LEARNING_RATE = 0.01
+    LEARNING_RATE = 0.001
     # Decay type for learning rate
     #   - static
     #   - linear
@@ -103,17 +109,11 @@ class PARAMETERS:
     # decayed_learning_rate = LEARNING_RATE *
     #                         LEARNING_RATE_DECAY ^ (step / LEARNING_RATE_DECAY_STEPS)
     # with integer dvision for "exponential_staircase"
-    LEARNING_RATE_DECAY_STEPS = 400
+    LEARNING_RATE_DECAY_STEPS = 1
     # Only has an effect for "exponential" decay
     LEARNING_RATE_DECAY = 0.97
     # Minimal Learning Rate
     MIN_LEARNING_RATE = 0.0001
-    # Momentum
-    MOMENTUM = 0.9
-    # Clipnorm
-    CLIPNORM = 0
-    # Clipvalue
-    CLIPVALUE = 0
 
 
 def main():

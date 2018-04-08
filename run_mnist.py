@@ -50,6 +50,10 @@ class MNIST_DOMAIN_OPTIONS:
     TRANSLATE = False
     # Size of each image: MNIST_SIZE x MNIST_SIZE
     TRANSLATED_MNIST_SIZE = 60
+    # Number of Monte-Carlo Samples of the location policy,
+    # that should be created for each image
+    # 1 sample --> Only one evaluation per image
+    MONTE_CARLO = 1
 
 class PARAMETERS:
     """
@@ -70,7 +74,7 @@ class PARAMETERS:
     EARLY_STOPPING = True
     #   Number of Epochs observing the worsening of
     #   Validation set, before stopping
-    PATIENCE = 100
+    PATIENCE = 25
 
     #   =========================
     #   Save and Load the Model Weights
@@ -98,7 +102,7 @@ class PARAMETERS:
     #   - linear
     #   - exponential
     #   - exponential_staircase
-    LEARNING_RATE_DECAY_TYPE = "exponential_staircase"
+    LEARNING_RATE_DECAY_TYPE = "exponential"
     # Number of steps the Learning rate should "linearly"
     # decay to MIN_LEARNING_RATE
     # For "exponential" decay, the learning rate is updated as

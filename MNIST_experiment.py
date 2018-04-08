@@ -26,12 +26,22 @@ class Experiment():
 
         self.batch_size = PARAMETERS.BATCH_SIZE
         self.max_epochs = PARAMETERS.MAX_EPOCHS
+        self.M = DOMAIN_OPTIONS.MONTE_CARLO
         self.test_images = []
+
+        # Compute the ratio converting unit width in the coordinate system to the number of pixels.
+        # -----------------------------------
+        # Ba, J. L., Mnih, V., Deepmind, G., & Kavukcuoglu, K. (n.d.).
+        # MULTIPLE OBJECT RECOGNITION WITH VISUAL ATTENTION.
+        # Retrieved from https://arxiv.org/pdf/1412.7755.pdf
+        # -----------------------------------
+        # This ratio presents an exploration versus exploitation trade off.
         if DOMAIN_OPTIONS.TRANSLATE:
             pixel_scaling = (DOMAIN_OPTIONS.UNIT_PIXELS * 2.)/ float(DOMAIN_OPTIONS.TRANSLATED_MNIST_SIZE)
         else:
             pixel_scaling = (DOMAIN_OPTIONS.UNIT_PIXELS * 2.)/ float(DOMAIN_OPTIONS.MNIST_SIZE)
 
+        # Standard or Translated MNIST-Dataset
         if DOMAIN_OPTIONS.TRANSLATE:
             mnist_size = DOMAIN_OPTIONS.TRANSLATED_MNIST_SIZE
         else:
@@ -43,12 +53,11 @@ class Experiment():
         #   Loading the MNIST Dataset
         #   ================
 
-        self.mnist = MNIST(DOMAIN_OPTIONS.MNIST_SIZE, self.batch_size, DOMAIN_OPTIONS.TRANSLATE, DOMAIN_OPTIONS.TRANSLATED_MNIST_SIZE)
+        self.mnist = MNIST(DOMAIN_OPTIONS.MNIST_SIZE, self.batch_size, DOMAIN_OPTIONS.TRANSLATE, DOMAIN_OPTIONS.TRANSLATED_MNIST_SIZE, DOMAIN_OPTIONS.MONTE_CARLO)
 
         tf.reset_default_graph()
         self.summary_writer = tf.summary.FileWriter("summary")
 
-        self.M=10
         with tf.Session() as sess:
 
             #   ================
@@ -95,21 +104,28 @@ class Experiment():
 
         for i in range(batches_in_epoch):
             if validation:
-                X, Y, Y_S = self.mnist.get_batch_validation(self.batch_size)
+                X, Y, Y_S = self.mnist.get_batch(self.batch_size, data_type="validation")
             else:
-                X, Y, Y_S = self.mnist.get_batch_test(self.batch_size)
+                X, Y, Y_S = self.mnist.get_batch(self.batch_size, data_type="test")
                 self.test_images = X
 
             _, pred_action = self.ram.evaluate(X,Y)
 
             # Get Mean of the M samples for the same data for evaluating performance
-            # TODO: Cite
+            # -----------------------------------
+            # Ba, J. L., Mnih, V., Deepmind, G., & Kavukcuoglu, K. (n.d.).
+            # MULTIPLE OBJECT RECOGNITION WITH VISUAL ATTENTION.
+            # Retrieved from https://arxiv.org/pdf/1412.7755.pdf
+            # -----------------------------------
+            # See Eq. (14)
+            # As the the location prediction is stochastic, the attention model can be
+            # evaluated multiple times on the same sample.
+            # For evaluation, the mean of the log probabilities is then used for class prediction
+
             pred_action = np.reshape(pred_action,
                                      [self.M, -1, 10])
             pred_action = np.mean(pred_action, 0)
             pred_labels = np.argmax(pred_action, -1)
-          #  pred_labels_val = pred_labels_val.flatten()
-          #  correct_cnt += np.sum(pred_labels_val == labels_bak)
             actions += np.sum(np.equal(pred_labels,Y_S).astype(np.float32), axis=-1)
             actions_sqrt += np.sum((np.equal(pred_labels,Y_S).astype(np.float32))**2, axis=-1)
 
@@ -152,7 +168,7 @@ class Experiment():
             l_loss = []
             b_loss = []
             while total_epochs == self.mnist.dataset.train.epochs_completed:
-                X, Y= self.mnist.get_batch_train(self.batch_size)
+                X, Y= self.mnist.get_batch(self.batch_size, data_type="train")
                 _, pred_action, nnl_loss, reinforce_loss, baseline_loss = self.ram.train(X,Y)
                 pred_action = np.argmax(pred_action, -1)
                 train_accuracy += np.sum(np.equal(pred_action,Y).astype(np.float32), axis=-1)

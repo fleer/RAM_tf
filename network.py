@@ -46,6 +46,7 @@ class RAM():
         self.glimpses = glimpses
 
         # Learning Rate
+        self.max_lr = lr
         self.min_lr = min_lr
         self.lr_decay_rate = lr_decay
         self.lr_decay_steps = lr_decay_steps
@@ -388,10 +389,13 @@ class RAM():
             self.lr = max(self.min_lr, self.lr - self.lr_decay_rate)
         elif self.lr_decay_type == "exponential":
             # Exponential Learning Rate Decay
-            self.lr = max(self.min_lr, self.lr * (self.lr_decay_rate ** self.step/self.lr_decay_steps))
+            self.lr = max(self.min_lr, self.max_lr * (self.lr_decay_rate ** self.step/self.lr_decay_steps))
         elif self.lr_decay_type == "exponential_staircase":
             # Exponential Learning Rate Decay
-            self.lr = max(self.min_lr, self.lr * (self.lr_decay_rate ** (int(self.step) // int(self.lr_decay_steps))))
+            self.lr = max(self.min_lr, self.max_lr * (self.lr_decay_rate ** (self.step // self.lr_decay_steps)))
+        else:
+            print("Wrong type of learning rate: " + self.lr_decay_type)
+            return 0
         self.step += 1
 
         return self.lr

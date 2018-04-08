@@ -22,11 +22,11 @@ class MNIST():
 
     def get_batch(self, batch_size, data_type="train"):
         if data_type == "train":
-            X, Y = self.dataset.train.next_batch(batch_size)
+            X, Y_S = self.dataset.train.next_batch(batch_size)
         elif data_type == "validation":
-            X, Y = self.dataset.validation.next_batch(batch_size)
+            X, Y_S = self.dataset.validation.next_batch(batch_size)
         elif data_type == "test":
-            X, Y = self.dataset.test.next_batch(batch_size)
+            X, Y_S = self.dataset.test.next_batch(batch_size)
         else:
             print("Wrong data_type: " + str(data_type) + "!")
             return 0
@@ -42,9 +42,9 @@ class MNIST():
         # As the the location prediction is stochastic, the attention model can be
         # evaluated multiple times on the same sample.
         X = np.tile(X, [self.M, 1])
-        Y = np.tile(Y, [self.M])
+        Y = np.tile(Y_S, [self.M])
         X = np.reshape(X, (self.batch_size*self.M, self.mnist_size, self.mnist_size, 1))
-        return X,Y
+        return X, Y, Y_S
 
     def convertTranslated(self, images, initImgSize, finalImgSize, batch_size):
         size_diff = finalImgSize - initImgSize

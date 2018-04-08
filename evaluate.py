@@ -217,7 +217,7 @@ with tf.Session() as sess:
     if MNIST_DOMAIN_OPTIONS.TRANSLATE:
         mnist_size = MNIST_DOMAIN_OPTIONS.TRANSLATED_MNIST_SIZE
 
-    X, Y= mnist.get_batch(batch_size, "test")
+    X, _, Y = mnist.get_batch(batch_size, "test")
     img = np.reshape(X, (batch_size, mnist_size, mnist_size, channels))
     for k in range(batch_size):
         one_img = img[k,:,:,:]

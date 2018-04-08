@@ -168,7 +168,7 @@ class Experiment():
             l_loss = []
             b_loss = []
             while total_epochs == self.mnist.dataset.train.epochs_completed:
-                X, Y= self.mnist.get_batch(self.batch_size, data_type="train")
+                X, Y, _= self.mnist.get_batch(self.batch_size, data_type="train")
                 _, pred_action, nnl_loss, reinforce_loss, baseline_loss = self.ram.train(X,Y)
                 pred_action = np.argmax(pred_action, -1)
                 train_accuracy += np.sum(np.equal(pred_action,Y).astype(np.float32), axis=-1)

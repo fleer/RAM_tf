@@ -53,7 +53,7 @@ class MNIST_DOMAIN_OPTIONS:
     # Number of Monte-Carlo Samples of the location policy,
     # that should be created for each image
     # 1 sample --> Only one evaluation per image
-    MONTE_CARLO = 1
+    MONTE_CARLO = 10
 
 class PARAMETERS:
     """
@@ -74,7 +74,7 @@ class PARAMETERS:
     EARLY_STOPPING = True
     #   Number of Epochs observing the worsening of
     #   Validation set, before stopping
-    PATIENCE = 25
+    PATIENCE = 40
 
     #   =========================
     #   Save and Load the Model Weights

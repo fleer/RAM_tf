@@ -64,8 +64,8 @@ Examples of the images and the corresponding glimpses used by the network are di
  
 |Originial Image | Glimpse 1| Glimpse 3| Glimpse 5 |Glimpse 7|
 |:--:|:--:|:--:|:--:|:--:|
-|<img src="./MNIST_Results/Images/symbol_2.png" alt="Symbol0" width="140">|<img src="./MNIST_Results/Images/symbol_2_glimpse_0_zoom_1.png" alt="Glimpse0" width="140">|<img src="./MNIST_Results/Images/symbol_2_glimpse_2_zoom_1.png" alt="Glimpse0" width="140">|<img src="./MNIST_Results/Images/symbol_2_glimpse_4_zoom_1.png" alt="Glimpse4" width="140">|<img src="./MNIST_Results/Images/symbol_2_glimpse_6_zoom_1.png" alt="Glimpse6" width="140">|
-|<img src="./MNIST_Results/Images/symbol_5.png" alt="Symbol1" width="140">|<img src="./MNIST_Results/Images/symbol_5_glimpse_0_zoom_1.png" alt="Glimpse0" width="140">|<img src="./MNIST_Results/Images/symbol_5_glimpse_2_zoom_1.png" alt="Glimpse0" width="140">|<img src="./MNIST_Results/Images/symbol_5_glimpse_4_zoom_1.png" alt="Glimpse4" width="140">|<img src="./MNIST_Results/Images/symbol_5_glimpse_6_zoom_1.png" alt="Glimpse6" width="140">|
+|<img src="./MNIST_Results/Images/symbol_2.png" alt="Symbol0" width="140">|<img src="./MNIST_Results/Images/symbol_2_glimpse_0_zoom_1.png" alt="Glimpse0" width="140">|<img src="./MNIST_Results/Images/symbol_2_glimpse_2_zoom_1.png" alt="Glimpse0" width="140">|<img src="./MNIST_Results/Images/symbol_2_glimpse_4_zoom_1.png" alt="Glimpse3" width="140">|<img src="./MNIST_Results/Images/symbol_2_glimpse_5_zoom_1.png" alt="Glimpse6" width="140">|
+|<img src="./MNIST_Results/Images/symbol_5.png" alt="Symbol1" width="140">|<img src="./MNIST_Results/Images/symbol_5_glimpse_0_zoom_1.png" alt="Glimpse0" width="140">|<img src="./MNIST_Results/Images/symbol_5_glimpse_2_zoom_1.png" alt="Glimpse0" width="140">|<img src="./MNIST_Results/Images/symbol_5_glimpse_4_zoom_1.png" alt="Glimpse3" width="140">|<img src="./MNIST_Results/Images/symbol_5_glimpse_5_zoom_1.png" alt="Glimpse6" width="140">|
 
 ## Classification of the translated MNIST dataset
 In [1], the network is tested on non-centered digits. 

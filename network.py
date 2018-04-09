@@ -46,6 +46,7 @@ class RAM():
         self.glimpses = glimpses
 
         # Learning Rate
+        self.max_lr = lr
         self.min_lr = min_lr
         self.lr_decay_rate = lr_decay
         self.lr_decay_steps = lr_decay_steps
@@ -62,7 +63,9 @@ class RAM():
         self.pixel_scaling = pixel_scaling
         self.mnist_size = mnist_size
 
+        self.eval_location_list = []
         self.location_list = []
+        self.location_mean_list = []
         self.glimpses_list = []
 
         # Size of Hidden state
@@ -92,7 +95,7 @@ class RAM():
         outputs = self.model()
 
         # Get Model output & train
-        self.cost_a, self.cost_l, self.cost_b, self.reward, self.predicted_labels, self.train_a, self.train_b = self.loss(outputs)
+        self.cost_a, self.cost_l, self.cost_b, self.reward, self.predicted_probs, self.train_a, self.train_b = self.loss(outputs)
 
     def get_images(self, X):
         """
@@ -114,7 +117,7 @@ class RAM():
         :return: Mean reward, predicted labels
         """
         feed_dict = {self.inputs_placeholder: X, self.actions: Y, self.training: True}
-        fetches = [self.reward, self.predicted_labels]
+        fetches = [self.reward, self.predicted_probs]
         reward_fetched, predicted_labels_fetched = self.session.run(fetches, feed_dict=feed_dict)
         return reward_fetched, predicted_labels_fetched
 
@@ -126,7 +129,7 @@ class RAM():
         :return: Mean reward, predicted labels, accumulated loss, location policy loss, baseline loss
         """
         feed_dict = {self.inputs_placeholder: X, self.actions: Y, self.training: True, self.learning_rate: self.lr}
-        fetches = [self.cost_a, self.cost_l, self.cost_b, self.reward, self.predicted_labels, self.train_a, self.train_b]
+        fetches = [self.cost_a, self.cost_l, self.cost_b, self.reward, self.predicted_probs, self.train_a, self.train_b]
         results = self.session.run(fetches, feed_dict=feed_dict)
         cost_a_fetched, cost_l_fetched, cost_b_fetched, reward_fetched, prediction_labels_fetched, \
         train_a_fetched, train_b_fetched = results
@@ -139,11 +142,15 @@ class RAM():
         :param i: counter
         :return: next glimpse
         """
-        self.mean_loc = tf.stop_gradient(self.hard_tanh(tf.matmul(output, self.h_l_out)))
+        mean_loc = self.hard_tanh(tf.matmul(tf.stop_gradient(output), self.h_l_out))
         # Clip location between [-1,1] and adjust its scale
-        sample_loc =self.hard_tanh(self.mean_loc + tf.cond(self.training, lambda: tf.random_normal(self.mean_loc.get_shape(), 0, self.loc_std), lambda: 0. ))
+        sample_loc =self.hard_tanh(mean_loc + tf.cond(self.training, lambda: tf.random_normal(mean_loc.get_shape(), 0, self.loc_std), lambda: 0. ))
         loc = sample_loc * self.pixel_scaling
-        self.location_list.append(sample_loc)
+
+        self.location_mean_list.append(tf.reduce_sum(mean_loc,1))
+        self.location_list.append(tf.reduce_sum(sample_loc,1))
+        self.eval_location_list.append(loc)
+
         return self.Glimpse_Net(loc)
 
     def model(self):
@@ -152,6 +159,7 @@ class RAM():
         :return: Sequence of hidden states of the RNN
         """
         self.location_list = []
+        self.location_mean_list = []
         self.glimpses_list = []
         # Create LSTM Cell
         lstm_cell = tf.nn.rnn_cell.BasicLSTMCell(self.hs_size, activation=tf.nn.relu, state_is_tuple=True)
@@ -161,7 +169,10 @@ class RAM():
         initial_loc = self.hard_tanh(tf.matmul(initial_state[0], self.h_l_out))
         sample_loc = self.hard_tanh(initial_loc + tf.cond(self.training, lambda: tf.random_normal(initial_loc.get_shape(), 0, self.loc_std), lambda: 0.))
         loc = sample_loc *self.pixel_scaling
-        self.location_list.append(sample_loc)
+
+        self.location_mean_list.append(tf.reduce_sum(initial_loc,1))
+        self.location_list.append(tf.reduce_sum(sample_loc,1))
+        self.eval_location_list.append(loc)
 
         # Compute initial glimpse
         initial_glimpse = self.Glimpse_Net(loc)
@@ -184,11 +195,10 @@ class RAM():
         b_pred = []
         for o in outputs:
             o = tf.reshape(o, (self.batch_size, self.hs_size))
-            b_pred.append(tf.sigmoid(tf.matmul(o, self.b_l_out)))
-        baseline = tf.reduce_mean(b_pred, axis=0)
-        b = tf.reshape(baseline, (self.batch_size, 1))
-        # Stop gradient as the baseline is trained separately
+            b_pred.append(tf.squeeze(tf.matmul(o, self.b_l_out)))
+        b = tf.transpose(tf.stack(b_pred),perm=[1,0])
         b_ng = tf.stop_gradient(b)
+
 
         # Initialize weights of action network
         a_h_out = self.weight_variable((self.hs_size, 10))
@@ -201,6 +211,8 @@ class RAM():
         # reward per example
         R_batch = tf.cast(tf.equal(max_p_y, correct_y), tf.float32)
         R = tf.reshape(R_batch, (self.batch_size, 1))
+        R = tf.stop_gradient(R)
+        R = tf.tile(R, [1,self.glimpses])
 
         # mean reward
         reward = tf.reduce_mean(R_batch)
@@ -218,17 +230,20 @@ class RAM():
         #       d m          s**2
         #
 
-        Reinforce = (tf.reduce_mean(self.location_list, axis=0) - self.mean_loc)/(self.loc_std*self.loc_std) * (tf.tile(R,[1,2])-tf.tile(b_ng, [1,2]))
+        loc = tf.transpose(tf.stack(self.location_list),perm=[1,0])
+        mean_loc = tf.transpose(tf.stack(self.location_mean_list),perm=[1,0,])
+        #TODO: Remove the summation of 2D Location while appending to list and evaluate the characteristic elegibility indiviually for each dimension
+
+        Reinforce = tf.reduce_mean((loc - mean_loc)/(self.loc_std*self.loc_std) * (R-b_ng))
 
         # balances the scale of the two gradient components
         ratio = 1.
 
-        # Hybrid Loss
-        J = tf.concat([action_out * self.actions_onehot, ratio*Reinforce], 1)
+        # Action Loss
+        J = tf.reduce_sum(action_out * self.actions_onehot,axis=1)
 
-        J = tf.reduce_sum(J,axis=1)
-        J = tf.reduce_mean(J,axis=0)
-        cost = -J
+        # Hybrid Loss
+        cost = - tf.reduce_mean(J + ratio * Reinforce, axis=0)
 
         # Baseline is trained with MSE
         b_loss = tf.losses.mean_squared_error(R, b)
@@ -245,6 +260,7 @@ class RAM():
         else:
             raise ValueError("unrecognized update: {}".format(self.optimizer))
 
+        # TODO: Implement gradient clipping
         train_op_a = trainer.minimize(cost)
         train_op_b = trainer.minimize(b_loss, var_list=[self.b_l_out])
 
@@ -254,7 +270,7 @@ class RAM():
             take_first_zoom.append(self.glimpses_list[gl][0])
         self.summary_zooms = tf.summary.image("Zooms", tf.reshape(take_first_zoom, (self.glimpses, self.sensorBandwidth, self.sensorBandwidth, 1)), max_outputs=self.glimpses)
 
-        return cost, -Reinforce, b_loss, reward, max_p_y, train_op_a, train_op_b
+        return cost, -Reinforce, b_loss, reward, action_out, train_op_a, train_op_b
 
     def weight_variable(self,shape):
         """
@@ -263,7 +279,7 @@ class RAM():
         :param shape: Desired shape
         :return: Tensorflow variable
         """
-        initial = tf.random_uniform(shape, minval=-0.01, maxval=0.01)
+        initial = tf.random_uniform(shape, minval=-0.1, maxval=0.1)
         return tf.Variable(initial)
 
     def Glimpse_Net(self, location):
@@ -373,12 +389,13 @@ class RAM():
             self.lr = max(self.min_lr, self.lr - self.lr_decay_rate)
         elif self.lr_decay_type == "exponential":
             # Exponential Learning Rate Decay
-            self.lr = max(self.min_lr, self.lr * (self.lr_decay_rate ** self.step/self.lr_decay_steps))
+            self.lr = max(self.min_lr, self.max_lr * (self.lr_decay_rate ** self.step/self.lr_decay_steps))
         elif self.lr_decay_type == "exponential_staircase":
             # Exponential Learning Rate Decay
-            self.lr = max(self.min_lr, self.lr * (self.lr_decay_rate ** (int(self.step) // int(self.lr_decay_steps))))
-            print(int(self.step) // int(self.lr_decay_steps))
-
+            self.lr = max(self.min_lr, self.max_lr * (self.lr_decay_rate ** (self.step // self.lr_decay_steps)))
+        else:
+            print("Wrong type of learning rate: " + self.lr_decay_type)
+            return 0
         self.step += 1
 
         return self.lr

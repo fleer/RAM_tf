@@ -36,7 +36,8 @@ loc_std = MNIST_DOMAIN_OPTIONS.LOC_STD
 nZooms = MNIST_DOMAIN_OPTIONS.DEPTH
 nGlimpses = MNIST_DOMAIN_OPTIONS.NGLIMPSES
 
-batch_size = PARAMETERS.BATCH_SIZE
+#batch_size = PARAMETERS.BATCH_SIZE
+batch_size = 8
 max_epochs = PARAMETERS.MAX_EPOCHS
 
 
@@ -47,7 +48,7 @@ totalSensorBandwidth = nZooms * sensorResolution * sensorResolution * channels
 #   Loading the MNIST Dataset
 #   ================
 
-mnist = MNIST(MNIST_DOMAIN_OPTIONS.MNIST_SIZE, batch_size, MNIST_DOMAIN_OPTIONS.TRANSLATE, MNIST_DOMAIN_OPTIONS.TRANSLATED_MNIST_SIZE)
+mnist = MNIST(MNIST_DOMAIN_OPTIONS.MNIST_SIZE, batch_size, MNIST_DOMAIN_OPTIONS.TRANSLATE, MNIST_DOMAIN_OPTIONS.TRANSLATED_MNIST_SIZE, 1)
 
 
 if MNIST_DOMAIN_OPTIONS.TRANSLATE:
@@ -190,8 +191,7 @@ with tf.Session() as sess:
     #   ================
     ram = RAM(totalSensorBandwidth, batch_size, PARAMETERS.OPTIMIZER, PARAMETERS.MOMENTUM, nGlimpses, pixel_scaling, mnist_size, MNIST_DOMAIN_OPTIONS.CHANNELS, MNIST_DOMAIN_OPTIONS.SCALING_FACTOR,
                    MNIST_DOMAIN_OPTIONS.SENSOR, MNIST_DOMAIN_OPTIONS.DEPTH,
-                   PARAMETERS.LEARNING_RATE, PARAMETERS.LEARNING_RATE_DECAY,
-                   PARAMETERS.LEARNING_RATE_DECAY_STEPS, PARAMETERS.LEARNING_RATE_DECAY_TYPE,
+                   PARAMETERS.LEARNING_RATE, PARAMETERS.LEARNING_RATE_DECAY, PARAMETERS.LEARNING_RATE_DECAY_STEPS, PARAMETERS.LEARNING_RATE_DECAY_TYPE,
                    PARAMETERS.MIN_LEARNING_RATE, MNIST_DOMAIN_OPTIONS.LOC_STD, sess)
 
     saver = tf.train.Saver(max_to_keep=5)
@@ -201,7 +201,7 @@ with tf.Session() as sess:
             ckpt = tf.train.get_checkpoint_state('./' + sys.argv[2])
             saver.restore(sess, ckpt.model_checkpoint_path)
             #saver.restore(sess, './', sys.argv[2])
-            print("Loaded weights from " + sys.argv[2] + "!")
+            print("Loaded wights from " + sys.argv[2] + "!")
         except:
             print("Weights from " + sys.argv[2] +
                   " could not be loaded!")
@@ -217,9 +217,9 @@ with tf.Session() as sess:
     if MNIST_DOMAIN_OPTIONS.TRANSLATE:
         mnist_size = MNIST_DOMAIN_OPTIONS.TRANSLATED_MNIST_SIZE
 
-    X, Y= mnist.get_batch_test(batch_size)
+    X, _, Y = mnist.get_batch(batch_size, "test")
     img = np.reshape(X, (batch_size, mnist_size, mnist_size, channels))
-    for k in xrange(batch_size):
+    for k in range(batch_size):
         one_img = img[k,:,:,:]
 
         plt.title(Y[k], fontsize=40)
@@ -232,7 +232,7 @@ with tf.Session() as sess:
         plt.pause(.25)
 
     feed_dict = {ram.inputs_placeholder: X, ram.actions: Y, ram.training: False}#,
-    fetches = [ram.reward, ram.predicted_labels, ram.location_list]
+    fetches = [ram.reward, ram.predicted_probs, ram.eval_location_list]
     reward_fetched, predicted_labels_fetched, loc_list = sess.run(fetches, feed_dict=feed_dict)
 
     for n in range(nGlimpses):

@@ -26,12 +26,22 @@ class Experiment():
 
         self.batch_size = PARAMETERS.BATCH_SIZE
         self.max_epochs = PARAMETERS.MAX_EPOCHS
+        self.M = DOMAIN_OPTIONS.MONTE_CARLO
         self.test_images = []
+
+        # Compute the ratio converting unit width in the coordinate system to the number of pixels.
+        # -----------------------------------
+        # Ba, J. L., Mnih, V., Deepmind, G., & Kavukcuoglu, K. (n.d.).
+        # MULTIPLE OBJECT RECOGNITION WITH VISUAL ATTENTION.
+        # Retrieved from https://arxiv.org/pdf/1412.7755.pdf
+        # -----------------------------------
+        # This ratio presents an exploration versus exploitation trade off.
         if DOMAIN_OPTIONS.TRANSLATE:
             pixel_scaling = (DOMAIN_OPTIONS.UNIT_PIXELS * 2.)/ float(DOMAIN_OPTIONS.TRANSLATED_MNIST_SIZE)
         else:
             pixel_scaling = (DOMAIN_OPTIONS.UNIT_PIXELS * 2.)/ float(DOMAIN_OPTIONS.MNIST_SIZE)
 
+        # Standard or Translated MNIST-Dataset
         if DOMAIN_OPTIONS.TRANSLATE:
             mnist_size = DOMAIN_OPTIONS.TRANSLATED_MNIST_SIZE
         else:
@@ -43,7 +53,7 @@ class Experiment():
         #   Loading the MNIST Dataset
         #   ================
 
-        self.mnist = MNIST(DOMAIN_OPTIONS.MNIST_SIZE, self.batch_size, DOMAIN_OPTIONS.TRANSLATE, DOMAIN_OPTIONS.TRANSLATED_MNIST_SIZE)
+        self.mnist = MNIST(DOMAIN_OPTIONS.MNIST_SIZE, self.batch_size, DOMAIN_OPTIONS.TRANSLATE, DOMAIN_OPTIONS.TRANSLATED_MNIST_SIZE, DOMAIN_OPTIONS.MONTE_CARLO)
 
         tf.reset_default_graph()
         self.summary_writer = tf.summary.FileWriter("summary")
@@ -53,7 +63,7 @@ class Experiment():
             #   ================
             #   Creating the RAM
             #   ================
-            self.ram = RAM(totalSensorBandwidth, self.batch_size, PARAMETERS.OPTIMIZER, PARAMETERS.MOMENTUM, DOMAIN_OPTIONS.NGLIMPSES, pixel_scaling, mnist_size, DOMAIN_OPTIONS.CHANNELS, DOMAIN_OPTIONS.SCALING_FACTOR,
+            self.ram = RAM(totalSensorBandwidth, self.batch_size*self.M, PARAMETERS.OPTIMIZER, PARAMETERS.MOMENTUM, DOMAIN_OPTIONS.NGLIMPSES, pixel_scaling, mnist_size, DOMAIN_OPTIONS.CHANNELS, DOMAIN_OPTIONS.SCALING_FACTOR,
                            DOMAIN_OPTIONS.SENSOR, DOMAIN_OPTIONS.DEPTH,
                            PARAMETERS.LEARNING_RATE, PARAMETERS.LEARNING_RATE_DECAY, PARAMETERS.LEARNING_RATE_DECAY_STEPS, PARAMETERS.LEARNING_RATE_DECAY_TYPE,
                            PARAMETERS.MIN_LEARNING_RATE, DOMAIN_OPTIONS.LOC_STD, sess)
@@ -94,17 +104,33 @@ class Experiment():
 
         for i in range(batches_in_epoch):
             if validation:
-                X, Y= self.mnist.get_batch_validation(self.batch_size)
+                X, Y, Y_S = self.mnist.get_batch(self.batch_size, data_type="validation")
             else:
-                X, Y= self.mnist.get_batch_test(self.batch_size)
+                X, Y, Y_S = self.mnist.get_batch(self.batch_size, data_type="test")
                 self.test_images = X
 
             _, pred_action = self.ram.evaluate(X,Y)
-            actions += np.sum(np.equal(pred_action,Y).astype(np.float32), axis=-1)
-            actions_sqrt += np.sum((np.equal(pred_action,Y).astype(np.float32))**2, axis=-1)
 
-        accuracy = actions/num_data
-        accuracy_std = np.sqrt(((actions_sqrt/num_data) - accuracy**2)/num_data)
+            # Get Mean of the M samples for the same data for evaluating performance
+            # -----------------------------------
+            # Ba, J. L., Mnih, V., Deepmind, G., & Kavukcuoglu, K. (n.d.).
+            # MULTIPLE OBJECT RECOGNITION WITH VISUAL ATTENTION.
+            # Retrieved from https://arxiv.org/pdf/1412.7755.pdf
+            # -----------------------------------
+            # See Eq. (14)
+            # As the the location prediction is stochastic, the attention model can be
+            # evaluated multiple times on the same sample.
+            # For evaluation, the mean of the log probabilities is then used for class prediction
+
+            pred_action = np.reshape(pred_action,
+                                     [self.M, -1, 10])
+            pred_action = np.mean(pred_action, 0)
+            pred_labels = np.argmax(pred_action, -1)
+            actions += np.sum(np.equal(pred_labels,Y_S).astype(np.float32), axis=-1)
+            actions_sqrt += np.sum((np.equal(pred_labels,Y_S).astype(np.float32))**2, axis=-1)
+
+        accuracy = actions/(num_data)
+        accuracy_std = np.sqrt(((actions_sqrt/(num_data)) - accuracy**2)/(num_data))
 
         if not validation:
             # Save to results file
@@ -142,8 +168,9 @@ class Experiment():
             l_loss = []
             b_loss = []
             while total_epochs == self.mnist.dataset.train.epochs_completed:
-                X, Y= self.mnist.get_batch_train(self.batch_size)
+                X, Y, _= self.mnist.get_batch(self.batch_size, data_type="train")
                 _, pred_action, nnl_loss, reinforce_loss, baseline_loss = self.ram.train(X,Y)
+                pred_action = np.argmax(pred_action, -1)
                 train_accuracy += np.sum(np.equal(pred_action,Y).astype(np.float32), axis=-1)
                 train_accuracy_sqrt+= np.sum((np.equal(pred_action,Y).astype(np.float32))**2, axis=-1)
                 a_loss.append(nnl_loss)
@@ -153,7 +180,7 @@ class Experiment():
             lr = self.ram.learning_rate_decay()
 
             # Train Accuracy
-            train_accuracy = train_accuracy/num_train_data
+            train_accuracy = train_accuracy/(num_train_data*self.M)
 
             if total_epochs % 10 == 0:
                 # Test Accuracy
@@ -163,7 +190,7 @@ class Experiment():
                 logging.info("Epoch={:d}: >>> Test-Accuracy: {:.4f} +/- {:.6f}".format(total_epochs, performance_accuracy, performance_accuracy_std))
 
                 # Some visualization
-                img, zooms = self.ram.get_images(np.vstack([self.test_images[0]]*self.batch_size))
+                img, zooms = self.ram.get_images(np.vstack([self.test_images[0]]*self.batch_size*self.M))
 
                 self.summary_writer.add_summary(img, total_epochs)
                 self.summary_writer.add_summary(zooms, total_epochs)
@@ -172,7 +199,7 @@ class Experiment():
                 # Validation Accuracy
                 validation_accuracy, vaidation_accuracy_std = self.performance_run(total_epochs, validation=True)
 
-                train_accuracy_std = np.sqrt(((train_accuracy_sqrt/num_train_data) - train_accuracy**2)/num_train_data)
+                train_accuracy_std = np.sqrt(((train_accuracy_sqrt/(num_train_data*self.M)) - train_accuracy**2)/(num_train_data*self.M))
 
                 # Print out Infos
                 logging.info("Epoch={:d}: >>> examples/s: {:.2f}, Accumulated-Loss: {:.4f}, Location-Loss: {:.4f}, Baseline-Loss: {:.4f}, "

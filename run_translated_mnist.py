@@ -50,6 +50,10 @@ class MNIST_DOMAIN_OPTIONS:
     TRANSLATE = True
     # Size of each image: MNIST_SIZE x MNIST_SIZE
     TRANSLATED_MNIST_SIZE = 60
+    # Number of Monte-Carlo Samples of the location policy,
+    # that should be created for each image
+    # 1 sample --> Only one evaluation per image
+    MONTE_CARLO = 10
 
 class PARAMETERS:
     """
@@ -65,12 +69,12 @@ class PARAMETERS:
     #   Number of learning epochs
     MAX_EPOCHS= 2000
     #   Batch size
-    BATCH_SIZE = 20
+    BATCH_SIZE = 64
     #   Early stopping
     EARLY_STOPPING = True
     #   Number of Epochs observing the worsening of
     #   Validation set, before stopping
-    PATIENCE = 200
+    PATIENCE = 40
 
     #   =========================
     #   Save and Load the Model Weights
@@ -88,24 +92,24 @@ class PARAMETERS:
     #   adam
     #   adadelta
     #   sgd
-    OPTIMIZER = 'sgd'
+    OPTIMIZER = 'adam'
     # Momentum
     MOMENTUM = 0.9
     # Learning rate alpha
-    LEARNING_RATE = 0.01
+    LEARNING_RATE = 0.001
     # Decay type for learning rate
     #   - static
     #   - linear
     #   - exponential
     #   - exponential_staircase
-    LEARNING_RATE_DECAY_TYPE = "linear"
+    LEARNING_RATE_DECAY_TYPE = "exponential"
     # Number of steps the Learning rate should "linearly"
     # decay to MIN_LEARNING_RATE
     # For "exponential" decay, the learning rate is updated as
     # decayed_learning_rate = LEARNING_RATE *
     #                         LEARNING_RATE_DECAY ^ (step / LEARNING_RATE_DECAY_STEPS)
     # with integer dvision for "exponential_staircase"
-    LEARNING_RATE_DECAY_STEPS = 400
+    LEARNING_RATE_DECAY_STEPS = 1
     # Only has an effect for "exponential" decay
     LEARNING_RATE_DECAY = 0.97
     # Minimal Learning Rate

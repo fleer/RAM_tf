@@ -37,7 +37,7 @@ nZooms = MNIST_DOMAIN_OPTIONS.DEPTH
 nGlimpses = MNIST_DOMAIN_OPTIONS.NGLIMPSES
 
 #batch_size = PARAMETERS.BATCH_SIZE
-batch_size = 4
+batch_size = 8
 max_epochs = PARAMETERS.MAX_EPOCHS
 
 

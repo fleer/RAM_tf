@@ -152,11 +152,9 @@ class Experiment():
         total_epochs = 0
         validation_accuracy = 0
         # Initial Performance Check
-     #   performance_accuracy, performance_accuracy_std = self.performance_run(total_epochs)
-     #   logging.info("Epoch={:d}: >>> Test-Accuracy: {:.4f} "
-     #                 "+/- {:.6f}".format(total_epochs, performance_accuracy, performance_accuracy_std))
-        performance_accuracy = 0
-        performance_accuracy_std = 0
+        performance_accuracy, performance_accuracy_std = self.performance_run(total_epochs)
+        logging.info("Epoch={:d}: >>> Test-Accuracy: {:.4f} "
+                      "+/- {:.6f}".format(total_epochs, performance_accuracy, performance_accuracy_std))
         num_train_data = len(self.mnist.dataset.train._images)
 
         patience_steps = 0

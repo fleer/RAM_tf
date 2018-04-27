@@ -1,4 +1,5 @@
-import tensorflow as tf
+#import tensorflow as tf
+import tf_mnist_loader
 import numpy as np
 
 class MNIST():
@@ -11,7 +12,8 @@ class MNIST():
 
         self.mnist_size = mnist_size
         self.batch_size = batch_size
-        self.dataset = tf.contrib.learn.datasets.load_dataset("mnist")
+        #self.dataset = tf.contrib.learn.datasets.load_dataset("mnist")
+        self.dataset = tf_mnist_loader.read_data_sets("MNIST-data")
 
         self.translate = translate
         if translate:

@@ -40,8 +40,6 @@ class MNIST_DOMAIN_OPTIONS:
     SCALING_FACTOR = 2
     # Number of Glimpses
     NGLIMPSES = 7
-    # Standard Deviation of the Location Policy
-    LOC_STD = 0.22
     # Defines how far the center of the glimpse
     # can reach the borders
     # UNIT_PIXELS = 13 --> g_c \in [2,27] for 28x28x1 images

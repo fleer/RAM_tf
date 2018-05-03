@@ -73,14 +73,19 @@ class Experiment():
                 print ('Loading Model...')
 #               # ckpt = tf.train.get_checkpoint_state(PARAMETERS.MODEL_FILE_PATH)
                 #self.saver.restore(sess, ckpt.model_checkpoint_path)
-                self.saver.restore(sess, PARAMETERS.MODEL_FILE_PATH)
+                latest_check_point = tf.train.latest_checkpoint(PARAMETERS.MODEL_FILE_PATH)
+                self.saver.restore(sess, latest_check_point)
             else:
                 sess.run(tf.global_variables_initializer())
 
+            coord = tf.train.Coordinator()
+            threads = tf.train.start_queue_runners(coord=coord)
             #   ================
             #   Train
             #   ================
             self.train(PARAMETERS.EARLY_STOPPING, PARAMETERS.PATIENCE, sess)
+            coord.request_stop()
+            coord.join(threads)
         self.save('./', 'results.json')
 
     def performance_run(self, total_epochs, validation=False):

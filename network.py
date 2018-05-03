@@ -67,6 +67,7 @@ class RAM():
         self.location_mean_list = []
         self.location_stddev_list = []
         self.glimpses_list = []
+        self.num_glimpses = tf.constant(0)
 
         # Size of Hidden state
         self.hs_size = 256
@@ -91,6 +92,8 @@ class RAM():
         self.h_l_out = self.weight_variable((self.hs_size, 2))
         self.h_l_std_out = self.weight_variable((self.hs_size, 2))
         self.b_l_out = self.weight_variable((self.hs_size, 1))
+        # Initialize weights of action network
+        self.a_h_out = self.weight_variable((self.hs_size, 11))
 
         # Create Model
         outputs = self.model()
@@ -118,9 +121,9 @@ class RAM():
         :return: Mean reward, predicted labels
         """
         feed_dict = {self.inputs_placeholder: X, self.actions: Y, self.training: True}
-        fetches = [self.reward, self.predicted_probs]
-        reward_fetched, predicted_labels_fetched = self.session.run(fetches, feed_dict=feed_dict)
-        return reward_fetched, predicted_labels_fetched
+        fetches = [self.reward, self.predicted_probs, self.num_glimpses]
+        reward_fetched, predicted_labels_fetched, num_glimpses_fetched = self.session.run(fetches, feed_dict=feed_dict)
+        return reward_fetched, predicted_labels_fetched, num_glimpses_fetched
 
     def train(self,X,Y):
         """
@@ -130,11 +133,11 @@ class RAM():
         :return: Mean reward, predicted labels, accumulated loss, location policy loss, baseline loss
         """
         feed_dict = {self.inputs_placeholder: X, self.actions: Y, self.training: True, self.learning_rate: self.lr}
-        fetches = [self.cost_a, self.cost_l, self.cost_s, self.cost_b, self.reward, self.predicted_probs, self.train_a, self.train_b]
+        fetches = [self.cost_a, self.cost_l, self.cost_s, self.cost_b, self.reward, self.predicted_probs, self.train_a, self.train_b, self.num_glimpses]
         results = self.session.run(fetches, feed_dict=feed_dict)
         cost_a_fetched, cost_l_fetched, cost_s_fetched, cost_b_fetched, reward_fetched, prediction_labels_fetched, \
-        train_a_fetched, train_b_fetched = results
-        return reward_fetched, prediction_labels_fetched, cost_a_fetched, cost_l_fetched, cost_s_fetched, cost_b_fetched
+        train_a_fetched, train_b_fetched, num_glimpses_fetched = results
+        return reward_fetched, prediction_labels_fetched, cost_a_fetched, cost_l_fetched, cost_s_fetched, cost_b_fetched, num_glimpses_fetched
 
     def get_next_input(self, output, i):
         """
@@ -164,6 +167,7 @@ class RAM():
         self.location_list = []
         self.location_mean_list = []
         self.glimpses_list = []
+        self.num_glimpses = tf.constant(0)
         # Create LSTM Cell
         lstm_cell = tf.nn.rnn_cell.BasicLSTMCell(self.hs_size, activation=tf.nn.relu, state_is_tuple=True)
         initial_state = lstm_cell.zero_state(self.batch_size, tf.float32)
@@ -185,10 +189,65 @@ class RAM():
 
         inputs = [initial_glimpse]
         inputs.extend([0] * (self.glimpses - 1))
-        outputs, _ = seq2seq.rnn_decoder(inputs, initial_state, lstm_cell, loop_function=self.get_next_input)
+
+        outputs, _ = self.rnn_decoder(inputs, initial_state, lstm_cell, loop_function=self.get_next_input)
 
         return outputs
 
+
+    def rnn_decoder(self, decoder_inputs,
+                    initial_state,
+                    cell,
+                    loop_function=None,
+                    scope=None):
+        """RNN decoder for the sequence-to-sequence model.
+
+        Args:
+          decoder_inputs: A list of 2D Tensors [batch_size x input_size].
+          initial_state: 2D Tensor with shape [batch_size x cell.state_size].
+          cell: rnn_cell.RNNCell defining the cell function and size.
+          loop_function: If not None, this function will be applied to the i-th output
+            in order to generate the i+1-st input, and decoder_inputs will be ignored,
+            except for the first element ("GO" symbol). This can be used for decoding,
+            but also for training to emulate http://arxiv.org/abs/1506.03099.
+            Signature -- loop_function(prev, i) = next
+              * prev is a 2D Tensor of shape [batch_size x output_size],
+              * i is an integer, the step number (when advanced control is needed),
+              * next is a 2D Tensor of shape [batch_size x input_size].
+          scope: VariableScope for the created subgraph; defaults to "rnn_decoder".
+
+        Returns:
+          A tuple of the form (outputs, state), where:
+            outputs: A list of the same length as decoder_inputs of 2D Tensors with
+              shape [batch_size x output_size] containing generated outputs.
+            state: The state of each cell at the final time-step.
+              It is a 2D Tensor of shape [batch_size x cell.state_size].
+              (Note that in some cases, like basic RNN cell or GRU cell, outputs and
+               states can be the same. They are different for LSTM cells though.)
+        """
+        from tensorflow.python.ops import variable_scope
+        with variable_scope.variable_scope(scope or "rnn_decoder"):
+            state = initial_state
+            outputs = []
+            prev = None
+            for i, inp in enumerate(decoder_inputs):
+                if loop_function is not None and prev is not None:
+                    with variable_scope.variable_scope("loop_function", reuse=True):
+                        inp = loop_function(prev, i)
+                if i > 0:
+                    variable_scope.get_variable_scope().reuse_variables()
+                output, state = cell(inp, state)
+                outputs.append(output)
+                if loop_function is not None:
+                    prev = output
+                # look at ONLY THE END of the sequence to predict label
+                self.action_out = tf.nn.log_softmax(tf.matmul(tf.reshape(output, (self.batch_size, self.hs_size)), self.a_h_out))
+                max_p_y = tf.argmax(self.action_out, axis=-1)
+                if max_p_y == 11:
+                    break
+                tf.add(self.num_glimpses,1)
+
+        return outputs, state
 
     def loss(self, outputs):
         """
@@ -205,13 +264,7 @@ class RAM():
         b = tf.transpose(tf.stack(b_pred),perm=[1,0])
         b_ng = tf.stop_gradient(b)
 
-
-        # Initialize weights of action network
-        a_h_out = self.weight_variable((self.hs_size, 10))
-
-        # look at ONLY THE END of the sequence to predict label
-        action_out = tf.nn.log_softmax(tf.matmul(tf.reshape(outputs[-1], (self.batch_size, self.hs_size)), a_h_out))
-        max_p_y = tf.argmax(action_out, axis=-1)
+        max_p_y = tf.argmax(self.action_out[:,:-1], axis=-1)
         correct_y = tf.cast(self.actions, tf.int64)
 
         # reward per example
@@ -248,7 +301,7 @@ class RAM():
         ratio = 0.75
 
         # Action Loss
-        J = tf.reduce_sum(action_out * self.actions_onehot,axis=1)
+        J = tf.reduce_sum(self.action_out[:,:-1] * self.actions_onehot,axis=1)
 
         # Hybrid Loss
         # Scale the learning rate for the REINFORCE part by tf.stop_gradient(std_loc)**2, as suggested in (Williams, 1992)
@@ -280,7 +333,7 @@ class RAM():
             take_first_zoom.append(self.glimpses_list[gl][0])
         self.summary_zooms = tf.summary.image("Zooms", tf.reshape(take_first_zoom, (self.glimpses, self.sensorBandwidth, self.sensorBandwidth, 1)), max_outputs=self.glimpses)
 
-        return cost, -Reinforce, -Reinforce_std, b_loss, reward, action_out, train_op_a, train_op_b
+        return cost, -Reinforce, -Reinforce_std, b_loss, reward, self.action_out[:,:-1], train_op_a, train_op_b
 
     def weight_variable(self,shape):
         """

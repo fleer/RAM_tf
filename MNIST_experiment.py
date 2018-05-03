@@ -109,7 +109,7 @@ class Experiment():
                 X, Y, Y_S = self.mnist.get_batch(self.batch_size, data_type="test")
                 self.test_images = X
 
-            _, pred_action = self.ram.evaluate(X,Y)
+            _, pred_action, num_glimpses = self.ram.evaluate(X,Y)
 
             # Get Mean of the M samples for the same data for evaluating performance
             # -----------------------------------
@@ -152,9 +152,12 @@ class Experiment():
         total_epochs = 0
         validation_accuracy = 0
         # Initial Performance Check
-        performance_accuracy, performance_accuracy_std = self.performance_run(total_epochs)
-        logging.info("Epoch={:d}: >>> Test-Accuracy: {:.4f} "
-                      "+/- {:.6f}".format(total_epochs, performance_accuracy, performance_accuracy_std))
+     #   performance_accuracy, performance_accuracy_std = self.performance_run(total_epochs)
+     #   logging.info("Epoch={:d}: >>> Test-Accuracy: {:.4f} "
+     #                 "+/- {:.6f}".format(total_epochs, performance_accuracy, performance_accuracy_std))
+
+        performance_accuracy = 0.
+        performance_accuracy_std = 0.
         num_train_data = len(self.mnist.dataset.train._images)
 
         patience_steps = 0
@@ -168,9 +171,10 @@ class Experiment():
             l_loss = []
             s_loss = []
             b_loss = []
+            g_mean = []
             while total_epochs == self.mnist.dataset.train.epochs_completed:
                 X, Y, _= self.mnist.get_batch(self.batch_size, data_type="train")
-                _, pred_action, nnl_loss, reinforce_loss, reinforce_std_loss, baseline_loss = self.ram.train(X,Y)
+                _, pred_action, nnl_loss, reinforce_loss, reinforce_std_loss, baseline_loss, num_glimpses = self.ram.train(X,Y)
                 pred_action = np.argmax(pred_action, -1)
                 train_accuracy += np.sum(np.equal(pred_action,Y).astype(np.float32), axis=-1)
                 train_accuracy_sqrt+= np.sum((np.equal(pred_action,Y).astype(np.float32))**2, axis=-1)
@@ -178,6 +182,7 @@ class Experiment():
                 l_loss.append(reinforce_loss)
                 s_loss.append(reinforce_std_loss)
                 b_loss.append(baseline_loss)
+                g_mean.append(num_glimpses)
             total_epochs += 1
             lr = self.ram.learning_rate_decay()
 
@@ -204,10 +209,10 @@ class Experiment():
                 train_accuracy_std = np.sqrt(((train_accuracy_sqrt/(num_train_data*self.M)) - train_accuracy**2)/(num_train_data*self.M))
 
                 # Print out Infos
-                logging.info("Epoch={:d}: >>> examples/s: {:.2f}, Accumulated-Loss: {:.4f}, Location-Mean Loss: {:.4f}, Location-Stddev Loss: {:.4f}, Baseline-Loss: {:.4f}, "
+                logging.info("Epoch={:d}: >>> examples/s: {:.2f}, Num_Glimpses: {:.2f}, Accumulated-Loss: {:.4f}, Location-Mean Loss: {:.4f}, Location-Stddev Loss: {:.4f}, Baseline-Loss: {:.4f}, "
                              "Learning Rate: {:.6f}, Train-Accuracy: {:.4f} +/- {:.6f}, "
                              "Validation-Accuracy: {:.4f} +/- {:.6f}".format(total_epochs,
-                                 float(num_train_data)/float(time.time()-start_time), np.mean(a_loss), np.mean(l_loss), np.mean(s_loss), np.mean(b_loss),
+                                 float(num_train_data)/float(time.time()-start_time), np.mean(g_mean), np.mean(a_loss), np.mean(l_loss), np.mean(s_loss), np.mean(b_loss),
                                  lr, train_accuracy, train_accuracy_std, validation_accuracy, vaidation_accuracy_std))
 
                 # Early Stopping
@@ -225,6 +230,7 @@ class Experiment():
             summary.value.add(tag='Accuracy/Performance', simple_value=float(performance_accuracy))
             summary.value.add(tag='Accuracy/Validation', simple_value=float(validation_accuracy))
             summary.value.add(tag='Accuracy/Train', simple_value=float(train_accuracy))
+            summary.value.add(tag='Number_of_Glimpses/Train', simple_value=float(np.mean(g_mean)))
 
             self.summary_writer.add_summary(summary, total_epochs)
 

@@ -39,7 +39,7 @@ class MNIST_DOMAIN_OPTIONS:
     # Scaling Factor of zooms
     SCALING_FACTOR = 2
     # Number of Glimpses
-    NGLIMPSES = 6
+    NGLIMPSES = 10
     # Defines how far the center of the glimpse
     # can reach the borders
     # UNIT_PIXELS = 13 --> g_c \in [2,27] for 28x28x1 images

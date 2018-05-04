@@ -12,6 +12,8 @@ These *glimpses* are then perceived in a retina-like representation to classify 
 As suggested in [1], [2], the network is trained using the REINFORCE [3] learning rule. 
 The baseline is trained by reducing the mean squared error between the baseline and the received reward.
 
+*In contrast to the model introduced in [1], not only the mean, but also the standard deviation of the location policy is learned.*
+
 The code is inspired by [3], [4] & [5].
 
 ## Installation
@@ -55,7 +57,7 @@ start the training via the corresponding configuration file:
 python run_mnist.py
 ```
 
-**Current Highscore:  98.6% +/- 0.12 accuracy on the MNIST test-dataset.**
+**Current Highscore:  97.97% +/- 0.14 accuracy on the MNIST test-dataset.**
 
 The plot below shows the accuracy for the test-dataset over the number of trained epochs. 
 ![Example](./MNIST_Results/MNIST_accuracy.png)
@@ -78,7 +80,7 @@ start the code via the corresponding configuration file:
 python run_translated_mnist.py
 ```
 
-**Current Highscore:  97.46% +/- 0.16 accuracy on the translated MNIST test-dataset.**
+**Current Highscore:  97.5% +/- 0.16 accuracy on the translated MNIST test-dataset.**
 
 The plot below shows the accuracy for the test-dataset over the number of trained epochs. 
 ![Example](./MNIST_translated_Results/MNIST_translated_accuracy.png)

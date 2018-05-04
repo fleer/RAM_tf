@@ -90,11 +90,11 @@ class PARAMETERS:
     #   adam
     #   adadelta
     #   sgd
-    OPTIMIZER = 'adam'
+    OPTIMIZER = 'sgd'
     # Momentum
     MOMENTUM = 0.9
     # Learning rate alpha
-    LEARNING_RATE = 0.001
+    LEARNING_RATE = 0.01
     # Decay type for learning rate
     #   - static
     #   - linear

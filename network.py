@@ -163,6 +163,7 @@ class RAM():
         """
         self.location_list = []
         self.location_mean_list = []
+        self.location_stddev_list = []
         self.glimpses_list = []
         # Create LSTM Cell
         lstm_cell = tf.nn.rnn_cell.BasicLSTMCell(self.hs_size, activation=tf.nn.relu, state_is_tuple=True)

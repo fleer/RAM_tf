@@ -77,7 +77,7 @@ class PARAMETERS:
     #   =========================
     #   Save and Load the Model Weights
     #   =========================
-    LOAD_MODEL = False 
+    LOAD_MODEL = False
     MODEL_FILE_PATH = './Model/'
 
 

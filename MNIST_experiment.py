@@ -56,7 +56,7 @@ class Experiment():
         self.mnist = MNIST(DOMAIN_OPTIONS.MNIST_SIZE, self.batch_size, DOMAIN_OPTIONS.TRANSLATE, DOMAIN_OPTIONS.TRANSLATED_MNIST_SIZE, DOMAIN_OPTIONS.MONTE_CARLO)
 
         # Create file writer
-        self.summary_writer = tf.summary.create_file_writer("summary")
+        summary_writer = tf.summary.create_file_writer("summary")
 
         #   ================
         #   Creating the RAM

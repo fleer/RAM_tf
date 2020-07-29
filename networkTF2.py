@@ -37,12 +37,12 @@ class AttentionControl(tf.keras.layers.Layer):
     :return: next glimpse
     """
     def __init__(self, units, batch_size, pixel_scaling):
-        super(attentionControl, self).__init__()
+        super(AttentionControl, self).__init__()
         # Number of weights
         hg_size = hl_size = 128
         g_size = 256
         self.pixel_scaling = pixel_scaling
-        self.self.batch_size = batch_size 
+        self.batch_size = batch_size 
         self.eval_location_list = []
         self.location_list = []
         self.location_mean_list = []
@@ -57,7 +57,6 @@ class AttentionControl(tf.keras.layers.Layer):
                 kernel_initializer = tf.keras.initializers.RandomNormal(mean=0.1))
         self.h_location_out = tf.keras.layers.Dense(units,
                 kernel_initializer = tf.keras.initializers.RandomNormal(mean=0.1))
-
         # Glimpse Net
         self.h_glimpse_layer = tf.keras.layers.Dense(hg_size, activation='relu',
                 kernel_initializer = tf.keras.initializers.RandomNormal(mean=0.1))
@@ -68,7 +67,7 @@ class AttentionControl(tf.keras.layers.Layer):
         self.h_location_layer_sum = tf.keras.layers.Dense(g_size,
                 kernel_initializer = tf.keras.initializers.RandomNormal(mean=0.1))
 
-    def reset_lists():
+    def reset_lists(self):
         self.eval_location_list = []
         self.location_list = []
         self.location_mean_list = []
@@ -76,9 +75,9 @@ class AttentionControl(tf.keras.layers.Layer):
         self.glimpses_list = []
         self.baseline_list = []
 
-    def get_lists():
+    def get_lists(self):
         return self.eval_location_list, self.location_list,
-            self.location_mean_list, self.location_stddev_list, self.glimpses_list
+        self.location_mean_list, self.location_stddev_list, self.glimpses_list
 
     def call(self, output, inputs):
         #TODO: First location has to be random
@@ -186,10 +185,10 @@ class Decoder(tf.keras.Model):
     def initialize_hidden_state(self):
         return tf.zeros((self.batch_size, self.units))
 
-    def reset_attention():
+    def reset_attention(self):
         self.attention.reset_lists()
 
-    def get_attention_lists():
+    def get_attention_lists(self):
         return self.attention.get_lists()
 
     def call(self, x, hidden, inputs):
@@ -283,7 +282,7 @@ class RAM():
         decoder = Decoder(self.hs_size, self.batch_size, self.pixel_scaling)
         decoder.initialize_hidden_state()
 
-        for i in self.glimpses:
+        # for i in self.glimpses:
 
         #outputs, _ = seq2seq.rnn_decoder(inputs, initial_state, lstm_cell, loop_function=self.get_next_input)
 

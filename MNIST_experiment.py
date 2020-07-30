@@ -7,6 +7,8 @@ import logging
 import time
 import os
 import json
+import matplotlib.pyplot as plt
+import matplotlib.image as mpimg
 
 class Experiment():
     """
@@ -80,165 +82,175 @@ class Experiment():
     #    #   ================
     #    #   Train
     #    #   ================
-    #    self.train(PARAMETERS.EARLY_STOPPING, PARAMETERS.PATIENCE, sess)
+        self.train(PARAMETERS.EARLY_STOPPING, PARAMETERS.PATIENCE)
     #    self.save('./', 'results.json')
 
-def performance_run(self, total_epochs, validation=False):
-    """
-    Function for evaluating the current model on the
-    validation- or test-dataset
+    def performance_run(self, total_epochs, validation=False):
+        """
+        Function for evaluating the current model on the
+        validation- or test-dataset
 
-    :param total_epochs: Number of trained epochs
-    :param validation: Should the smaller validation-dataset
-            be evaluated
-    :return: current accuracy and its error
-    """
-    actions = 0.
-    actions_sqrt = 0.
-    if validation:
-        num_data = len(self.mnist.dataset.validation._images)
-        batches_in_epoch = num_data // self.batch_size
-    else:
-        num_data = len(self.mnist.dataset.test._images)
-        batches_in_epoch = num_data // self.batch_size
-
-    for i in range(batches_in_epoch):
+        :param total_epochs: Number of trained epochs
+        :param validation: Should the smaller validation-dataset
+                be evaluated
+        :return: current accuracy and its error
+        """
+        actions = 0.
+        actions_sqrt = 0.
         if validation:
-            X, Y, Y_S = self.mnist.get_batch(self.batch_size, data_type="validation")
+            num_data = len(self.mnist.dataset.validation._images)
+            batches_in_epoch = num_data // self.batch_size
         else:
-            X, Y, Y_S = self.mnist.get_batch(self.batch_size, data_type="test")
-            self.test_images = X
+            num_data = len(self.mnist.dataset.test._images)
+            batches_in_epoch = num_data // self.batch_size
 
-        _, pred_action = self.ram.evaluate(X,Y)
-
-        # Get Mean of the M samples for the same data for evaluating performance
-        # -----------------------------------
-        # Ba, J. L., Mnih, V., Deepmind, G., & Kavukcuoglu, K. (n.d.).
-        # MULTIPLE OBJECT RECOGNITION WITH VISUAL ATTENTION.
-        # Retrieved from https://arxiv.org/pdf/1412.7755.pdf
-        # -----------------------------------
-        # See Eq. (14)
-        # As the the location prediction is stochastic, the attention model can be
-        # evaluated multiple times on the same sample.
-        # For evaluation, the mean of the log probabilities is then used for class prediction
-
-        pred_action = np.reshape(pred_action,
-                                 [self.M, -1, 10])
-        pred_action = np.mean(pred_action, 0)
-        pred_labels = np.argmax(pred_action, -1)
-        actions += np.sum(np.equal(pred_labels,Y_S).astype(np.float32), axis=-1)
-        actions_sqrt += np.sum((np.equal(pred_labels,Y_S).astype(np.float32))**2, axis=-1)
-
-    accuracy = actions/(num_data)
-    accuracy_std = np.sqrt(((actions_sqrt/(num_data)) - accuracy**2)/(num_data))
-
-    if not validation:
-        # Save to results file
-        self.results['learning_steps'].append(total_epochs)
-        self.results['accuracy'].append(accuracy)
-        self.results['accuracy_std'].append(accuracy_std)
-
-    return accuracy, accuracy_std
-
-def train(self, early_stopping, patience, session):
-    """
-    Training the current model
-    :param early_stopping: Use early stopping
-    :param patience: Number of Epochs observing the worsening of
-            Validation set, before stopping
-    :param session: Tensorflow session
-    :return:
-    """
-    total_epochs = 0
-    validation_accuracy = 0
-    # Initial Performance Check
-    performance_accuracy, performance_accuracy_std = self.performance_run(total_epochs)
-    logging.info("Epoch={:d}: >>> Test-Accuracy: {:.4f} "
-                  "+/- {:.6f}".format(total_epochs, performance_accuracy, performance_accuracy_std))
-    num_train_data = len(self.mnist.dataset.train._images)
-
-    patience_steps = 0
-    early_stopping_accuracy = 0.
-    for i in range(self.max_epochs):
-        summary = tf.Summary()
-        start_time = time.time()
-        train_accuracy = 0
-        train_accuracy_sqrt = 0
-        a_loss = []
-        l_loss = []
-        s_loss = []
-        b_loss = []
-        while total_epochs == self.mnist.dataset.train.epochs_completed:
-            X, Y, _= self.mnist.get_batch(self.batch_size, data_type="train")
-            _, pred_action, nnl_loss, reinforce_loss, reinforce_std_loss, baseline_loss = self.ram.train(X,Y)
-            pred_action = np.argmax(pred_action, -1)
-            train_accuracy += np.sum(np.equal(pred_action,Y).astype(np.float32), axis=-1)
-            train_accuracy_sqrt+= np.sum((np.equal(pred_action,Y).astype(np.float32))**2, axis=-1)
-            a_loss.append(nnl_loss)
-            l_loss.append(reinforce_loss)
-            s_loss.append(reinforce_std_loss)
-            b_loss.append(baseline_loss)
-        total_epochs += 1
-        lr = self.ram.learning_rate_decay()
-
-        # Train Accuracy
-        train_accuracy = train_accuracy/(num_train_data*self.M)
-
-        if total_epochs % 10 == 0:
-            # Test Accuracy
-            performance_accuracy, performance_accuracy_std = self.performance_run(total_epochs)
-
-            # Print out Infos
-            logging.info("Epoch={:d}: >>> Test-Accuracy: {:.4f} +/- {:.6f}".format(total_epochs, performance_accuracy, performance_accuracy_std))
-
-            # Some visualization
-            img, zooms = self.ram.get_images(np.vstack([self.test_images[0]]*self.batch_size*self.M))
-
-            self.summary_writer.add_summary(img, total_epochs)
-            self.summary_writer.add_summary(zooms, total_epochs)
-            self.test_images = []
-        else:
-            # Validation Accuracy
-            validation_accuracy, vaidation_accuracy_std = self.performance_run(total_epochs, validation=True)
-
-            train_accuracy_std = np.sqrt(((train_accuracy_sqrt/(num_train_data*self.M)) - train_accuracy**2)/(num_train_data*self.M))
-
-            # Print out Infos
-            logging.info("Epoch={:d}: >>> examples/s: {:.2f}, Accumulated-Loss: {:.4f}, Location-Mean Loss: {:.4f}, Location-Stddev Loss: {:.4f}, Baseline-Loss: {:.4f}, "
-                         "Learning Rate: {:.6f}, Train-Accuracy: {:.4f} +/- {:.6f}, "
-                         "Validation-Accuracy: {:.4f} +/- {:.6f}".format(total_epochs,
-                             float(num_train_data)/float(time.time()-start_time), np.mean(a_loss), np.mean(l_loss), np.mean(s_loss), np.mean(b_loss),
-                             lr, train_accuracy, train_accuracy_std, validation_accuracy, vaidation_accuracy_std))
-
-            # Early Stopping
-            if early_stopping and early_stopping_accuracy < validation_accuracy:
-                early_stopping_accuracy = validation_accuracy
-                patience_steps = 0
+        for _ in range(batches_in_epoch):
+            if validation:
+                X, Y, Y_S = self.mnist.get_batch(self.batch_size, data_type="validation")
             else:
-                patience_steps += 1
+                X, Y, Y_S = self.mnist.get_batch(self.batch_size, data_type="test")
+                self.test_images = X
 
-        # Gather information for Tensorboard
-        summary.value.add(tag='Losses/Accumulated Loss', simple_value=float(np.mean(a_loss)))
-        summary.value.add(tag='Losses/Location: Mean Loss', simple_value=float(np.mean(l_loss)))
-        summary.value.add(tag='Losses/Location: Stddev Loss', simple_value=float(np.mean(s_loss)))
-        summary.value.add(tag='Losses/Baseline Loss', simple_value=float(np.mean(b_loss)))
-        summary.value.add(tag='Accuracy/Performance', simple_value=float(performance_accuracy))
-        summary.value.add(tag='Accuracy/Validation', simple_value=float(validation_accuracy))
-        summary.value.add(tag='Accuracy/Train', simple_value=float(train_accuracy))
+            _, pred_action = self.ram.evaluate(X,Y)
 
-        self.summary_writer.add_summary(summary, total_epochs)
+            # Get Mean of the M samples for the same data for evaluating performance
+            # -----------------------------------
+            # Ba, J. L., Mnih, V., Deepmind, G., & Kavukcuoglu, K. (n.d.).
+            # MULTIPLE OBJECT RECOGNITION WITH VISUAL ATTENTION.
+            # Retrieved from https://arxiv.org/pdf/1412.7755.pdf
+            # -----------------------------------
+            # See Eq. (14)
+            # As the the location prediction is stochastic, the attention model can be
+            # evaluated multiple times on the same sample.
+            # For evaluation, the mean of the log probabilities is then used for class prediction
 
-        self.summary_writer.flush()
+            pred_action = np.reshape(pred_action,
+                                     [self.M, -1, 10])
+            pred_action = np.mean(pred_action, 0)
+            pred_labels = np.argmax(pred_action, -1)
+            actions += np.sum(np.equal(pred_labels,Y_S).astype(np.float32), axis=-1)
+            actions_sqrt += np.sum((np.equal(pred_labels,Y_S).astype(np.float32))**2, axis=-1)
 
-        # Early Stopping
-        if patience_steps > patience:
-            self.saver.save(session, './Model/best_model-' + str(total_epochs) + '.cptk')
-            logging.info("Early Stopping at Epoch={:d}! Validation Accuracy is not increasing. The best Newtork will be saved!".format(total_epochs))
-            return 0
+        accuracy = actions/(num_data)
+        accuracy_std = np.sqrt(((actions_sqrt/(num_data)) - accuracy**2)/(num_data))
 
-        # Save Model
-        if total_epochs % 100 == 0:
-            self.saver.save(session, save_path='./Model', global_step=total_epochs)
+        if not validation:
+            # Save to results file
+            self.results['learning_steps'].append(total_epochs)
+            self.results['accuracy'].append(accuracy)
+            self.results['accuracy_std'].append(accuracy_std)
+
+        return accuracy, accuracy_std
+
+    def train(self, early_stopping, patience):
+        """
+        Training the current model
+        :param early_stopping: Use early stopping
+        :param patience: Number of Epochs observing the worsening of
+                Validation set, before stopping
+        :param session: Tensorflow session
+        :return:
+        """
+
+        total_epochs = 0
+        validation_accuracy = 0
+        # Initial Performance Check
+        # performance_accuracy, performance_accuracy_std = self.performance_run(total_epochs)
+        # logging.info("Epoch={:d}: >>> Test-Accuracy: {:.4f} "
+        #               "+/- {:.6f}".format(total_epochs, performance_accuracy, performance_accuracy_std))
+        num_train_data = len(self.mnist.dataset.train._images)
+
+        patience_steps = 0
+        early_stopping_accuracy = 0.
+        for _ in range(self.max_epochs):
+            # summary = tf.Summary()
+            tart_time = time.time()
+            rain_accuracy = 0
+            rain_accuracy_sqrt = 0
+            a_loss = []
+            l_loss = []
+            s_loss = []
+            b_loss = []
+            # while total_epochs == self.mnist.dataset.train.epochs_completed:
+            X, Y, _= self.mnist.get_batch(self.batch_size, data_type="train")
+        #        _, pred_action, nnl_loss, reinforce_loss, reinforce_std_loss, baseline_loss = self.ram.train(X,Y)
+            self.visualize(X,Y, '1');
+                # pred_action = np.argmax(pred_action, -1)
+                # train_accuracy += np.sum(np.equal(pred_action,Y).astype(np.float32), axis=-1)
+                # train_accuracy_sqrt+= np.sum((np.equal(pred_action,Y).astype(np.float32))**2, axis=-1)
+                # a_loss.append(nnl_loss)
+                # l_loss.append(reinforce_loss)
+                # s_loss.append(reinforce_std_loss)
+                # b_loss.append(baseline_loss)
+            # total_epochs += 1
+            # lr = self.ram.learning_rate_decay()
+
+        #    # Train Accuracy
+        #    train_accuracy = train_accuracy/(num_train_data*self.M)
+
+        #    if total_epochs % 10 == 0:
+        #        # Test Accuracy
+        #        performance_accuracy, performance_accuracy_std = self.performance_run(total_epochs)
+
+        #        # Print out Infos
+        #        logging.info("Epoch={:d}: >>> Test-Accuracy: {:.4f} +/- {:.6f}".format(total_epochs, performance_accuracy, performance_accuracy_std))
+
+        #        # Some visualization
+        #        img, zooms = self.ram.get_images(np.vstack([self.test_images[0]]*self.batch_size*self.M))
+
+        #        self.summary_writer.add_summary(img, total_epochs)
+        #        self.summary_writer.add_summary(zooms, total_epochs)
+        #        self.test_images = []
+        #    else:
+        #        # Validation Accuracy
+        #        validation_accuracy, vaidation_accuracy_std = self.performance_run(total_epochs, validation=True)
+
+        #        train_accuracy_std = np.sqrt(((train_accuracy_sqrt/(num_train_data*self.M)) - train_accuracy**2)/(num_train_data*self.M))
+
+        #        # Print out Infos
+        #        logging.info("Epoch={:d}: >>> examples/s: {:.2f}, Accumulated-Loss: {:.4f}, Location-Mean Loss: {:.4f}, Location-Stddev Loss: {:.4f}, Baseline-Loss: {:.4f}, "
+        #                     "Learning Rate: {:.6f}, Train-Accuracy: {:.4f} +/- {:.6f}, "
+        #                     "Validation-Accuracy: {:.4f} +/- {:.6f}".format(total_epochs,
+        #                         float(num_train_data)/float(time.time()-start_time), np.mean(a_loss), np.mean(l_loss), np.mean(s_loss), np.mean(b_loss),
+        #                         lr, train_accuracy, train_accuracy_std, validation_accuracy, vaidation_accuracy_std))
+
+        #        # Early Stopping
+        #        if early_stopping and early_stopping_accuracy < validation_accuracy:
+        #            early_stopping_accuracy = validation_accuracy
+        #            patience_steps = 0
+        #        else:
+        #            patience_steps += 1
+
+        #    # Gather information for Tensorboard
+        #    summary.value.add(tag='Losses/Accumulated Loss', simple_value=float(np.mean(a_loss)))
+        #    summary.value.add(tag='Losses/Location: Mean Loss', simple_value=float(np.mean(l_loss)))
+        #    summary.value.add(tag='Losses/Location: Stddev Loss', simple_value=float(np.mean(s_loss)))
+        #    summary.value.add(tag='Losses/Baseline Loss', simple_value=float(np.mean(b_loss)))
+        #    summary.value.add(tag='Accuracy/Performance', simple_value=float(performance_accuracy))
+        #    summary.value.add(tag='Accuracy/Validation', simple_value=float(validation_accuracy))
+        #    summary.value.add(tag='Accuracy/Train', simple_value=float(train_accuracy))
+
+        #    self.summary_writer.add_summary(summary, total_epochs)
+
+        #    self.summary_writer.flush()
+
+        #    # Early Stopping
+        #    if patience_steps > patience:
+        #        self.saver.save(session, './Model/best_model-' + str(total_epochs) + '.cptk')
+        #        logging.info("Early Stopping at Epoch={:d}! Validation Accuracy is not increasing. The best Newtork will be saved!".format(total_epochs))
+        #        return 0
+
+        #    # Save Model
+        #    if total_epochs % 100 == 0:
+        #        self.saver.save(session, save_path='./Model', global_step=total_epochs)
+
+    def visualize(self, batch_x, batch_y, batch_pred):
+        print(batch_x);
+        print(np.shape(batch_x))
+        plt.imshow(batch_x[1][:,:,0])
+        plt.show()
+        wait = input("PRESS ENTER TO CONTINUE.")
+
 
     def save(self, path, filename):
         """

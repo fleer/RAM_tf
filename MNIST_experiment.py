@@ -22,6 +22,9 @@ class Experiment():
 
         logging.basicConfig(level=logging.INFO)
 
+        # For plotting
+        plt.ion()
+
         #   ================
         #   Reading the parameters
         #   ================
@@ -245,11 +248,25 @@ class Experiment():
         #        self.saver.save(session, save_path='./Model', global_step=total_epochs)
 
     def visualize(self, batch_x, batch_y, batch_pred):
-        print(batch_x);
-        print(np.shape(batch_x))
+        """Plot a dictionary of figures.
+
+        Parameters
+        ----------
+        figures : <title, figure> dictionary
+        ncols : number of columns of subplots wanted in the display
+        nrows : number of rows of subplots wanted in the figure
+        """
+        n = int(np.sqrt(len(batch_x)))
+        fig, axeslist = plt.subplots(ncols=n+1, nrows=n+1)
+        for ind in range(len(batch_x)):
+            title = batch_pred[ind]
+            axeslist.ravel()[ind].imshow(batch_x[ind,:,:,0], cmap=plt.jet())
+            axeslist.ravel()[ind].set_title(title)
+            axeslist.ravel()[ind].set_axis_off()
+        plt.tight_layout() # optional
         plt.imshow(batch_x[1][:,:,0])
-        plt.show()
-        wait = input("PRESS ENTER TO CONTINUE.")
+        plt.draw()
+        plt.pause(0.1)
 
 
     def save(self, path, filename):

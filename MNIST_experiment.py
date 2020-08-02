@@ -22,9 +22,6 @@ class Experiment():
 
         logging.basicConfig(level=logging.INFO)
 
-        # For plotting
-        plt.ion()
-
         #   ================
         #   Reading the parameters
         #   ================
@@ -165,6 +162,7 @@ class Experiment():
 
         patience_steps = 0
         early_stopping_accuracy = 0.
+        visualize_classification = True
         for _ in range(self.max_epochs):
             # summary = tf.Summary()
             tart_time = time.time()
@@ -177,7 +175,9 @@ class Experiment():
             # while total_epochs == self.mnist.dataset.train.epochs_completed:
             X, Y, _= self.mnist.get_batch(self.batch_size, data_type="train")
         #        _, pred_action, nnl_loss, reinforce_loss, reinforce_std_loss, baseline_loss = self.ram.train(X,Y)
-            self.visualize(X,Y, '1');
+            if (visualize_classification):
+                self.visualize(X[:self.batch_size],Y[:self.batch_size], Y[:self.batch_size]);
+                visualize_classification = False
                 # pred_action = np.argmax(pred_action, -1)
                 # train_accuracy += np.sum(np.equal(pred_action,Y).astype(np.float32), axis=-1)
                 # train_accuracy_sqrt+= np.sum((np.equal(pred_action,Y).astype(np.float32))**2, axis=-1)
@@ -256,17 +256,29 @@ class Experiment():
         ncols : number of columns of subplots wanted in the display
         nrows : number of rows of subplots wanted in the figure
         """
+        plt.ion()
         n = int(np.sqrt(len(batch_x)))
-        fig, axeslist = plt.subplots(ncols=n+1, nrows=n+1)
+
+        # TODO: Why?
+        try:
+            if not self._fig is None:
+                # self._fig.clear()
+                # self._fig, self.axeslist = plt.subplots(ncols=n+1, nrows=n+1)
+                print("Test")
+        except:
+            self._fig, self.axeslist = plt.subplots(ncols=n+1, nrows=n+1)
+
         for ind in range(len(batch_x)):
             title = batch_pred[ind]
-            axeslist.ravel()[ind].imshow(batch_x[ind,:,:,0], cmap=plt.jet())
-            axeslist.ravel()[ind].set_title(title)
-            axeslist.ravel()[ind].set_axis_off()
+            self.axeslist.ravel()[ind].imshow(batch_x[ind,:,:,0], cmap=plt.jet())
+            self.axeslist.ravel()[ind].set_title(title)
+            self.axeslist.ravel()[ind].set_axis_off()
         plt.tight_layout() # optional
-        plt.imshow(batch_x[1][:,:,0])
-        plt.draw()
-        plt.pause(0.1)
+        canvas = plt.get_current_fig_manager().canvas
+        canvas.draw()
+        # plt.imshow(batch_x[1][:,:,0])
+        # plt.draw()
+        plt.pause(1)
 
 
     def save(self, path, filename):

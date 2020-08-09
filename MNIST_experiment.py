@@ -27,9 +27,14 @@ class Experiment():
         #   Reading the parameters
         #   ================
 
+        self.learning_rate_decay_type = PARAMETERS.LEARNING_RATE_DECAY_TYPE
+        self.min_lr = PARAMETERS.MIN_LEARNING_RATE
+        self.momentum = PARAMETERS.MOMENTUM
+        self.optimizer = PARAMETERS.OPTIMIZER
         self.batch_size = PARAMETERS.BATCH_SIZE
         self.max_epochs = PARAMETERS.MAX_EPOCHS
         self.M = DOMAIN_OPTIONS.MONTE_CARLO
+        self.num_glimpses = DOMAIN_OPTIONS.NGLIMPSES
         self.test_images = []
 
         # Compute the ratio converting unit width in the coordinate system to the number of pixels.
@@ -154,6 +159,17 @@ class Experiment():
         :param session: Tensorflow session
         :return:
         """
+        # Choose Optimizer
+        if self.optimizer == "rmsprop":
+            trainer = tf.keras.optimizers.RMSProp(learning_rate=self.learning_rate)
+        elif self.optimizer == "adam":
+            trainer = tf.keras.optimizers.Adam(learning_rate=self.learning_rate)
+        elif self.optimizer == "adadelta":
+            trainer = tf.keras.optimizers.Adadelta(learning_rate=self.learning_rate)
+        elif self.optimizer == 'sgd':
+            trainer = tf.keras.optimizers.SGD(learning_rate=self.learning_rate, momentum=self.momentum, use_nesterov=True)
+        else:
+            raise ValueError("unrecognized update: {}".format(self.optimizer))
 
         total_epochs = 0
         validation_accuracy = 0
@@ -179,12 +195,24 @@ class Experiment():
             X, Y, _= self.mnist.get_batch(self.batch_size, data_type="train")
         #        _, pred_action, nnl_loss, reinforce_loss, reinforce_std_loss, baseline_loss = self.ram.train(X,Y)
             if (visualize_classification):
-                self.visualize(X[:self.batch_size],Y[:self.batch_size], Y[:self.batch_size]); visualize_classification = False
-                hidden = self.ram.initialize_hidden_state()
-                self.ram(X,hidden)
-                # pred_action = np.argmax(pred_action, -1)
-                # train_accuracy += np.sum(np.equal(pred_action,Y).astype(np.float32), axis=-1)
-                # train_accuracy_sqrt+= np.sum((np.equal(pred_action,Y).astype(np.float32))**2, axis=-1)
+                self.visualize(X[:self.batch_size],Y[:self.batch_size], Y[:self.batch_size])
+                visualize_classification = False
+            state = self.ram.initialize_hidden_state()
+            with tf.GradientTape() as tape:
+                glimpse, pred, baseline = self.ram(X, state)
+                cost, Reinforce, Reinforce_std, b_loss, reward 
+            # TODO: Implement gradient clipping
+            gradients_op_a = tape.gradient(cost, self.ram.trainable_variables)
+            gradients_op_b = tape.gradient(b_loss, self.ram.trainable_variables)
+            trainer.apply_gradients(zip(gradients_op_a, self.ram.trainable_variables))
+            trainer.apply_gradients(zip(gradients_op_b, self.ram.trainable_variables))
+
+            # Get data for Tensorboard summary
+            take_first_zoom = []
+            for gl in range(self.glimpses):
+                take_first_zoom.append(self.glimpses_list[gl][0])
+            self.summary_zooms = tf.summary.image("Zooms", tf.reshape(take_first_zoom, (self.glimpses, self.sensorBandwidth, self.sensorBandwidth, 1)), max_outputs=self.glimpses)
+
                 # a_loss.append(nnl_loss)
                 # l_loss.append(reinforce_loss)
                 # s_loss.append(reinforce_std_loss)
@@ -270,19 +298,19 @@ class Experiment():
                 # self._fig, self.axeslist = plt.subplots(ncols=n+1, nrows=n+1)
                 print("Test")
         except:
-            self._fig, self.axeslist = plt.subplots(ncols=n+1, nrows=n+1)
+            self._fig, self.axeslist = plt.subplots(ncols=n, nrows=n+1)
 
         for ind in range(len(batch_x)):
             title = batch_pred[ind]
             self.axeslist.ravel()[ind].imshow(batch_x[ind,:,:,0], cmap=plt.jet())
             self.axeslist.ravel()[ind].set_title(title)
             self.axeslist.ravel()[ind].set_axis_off()
-        plt.tight_layout() # optional
+        # plt.tight_layout() # optional
         canvas = plt.get_current_fig_manager().canvas
         canvas.draw()
         # plt.imshow(batch_x[1][:,:,0])
         # plt.draw()
-        plt.pause(1)
+        plt.pause(0.1)
 
 
     def save(self, path, filename):
@@ -297,6 +325,28 @@ class Experiment():
         with open(results_fn, "w") as f:
             json.dump(self.results, f, indent=4, sort_keys=True)
         f.close()
+
+    def learning_rate_decay(self):
+        """
+        Function to control the linear decay
+        of the learning rate
+        :return: New learning rate
+        """
+        if self.lr_decay_type == "linear":
+            # Linear Learning Rate Decay
+            self.lr = max(self.min_lr, self.lr - self.lr_decay_rate)
+        elif self.lr_decay_type == "exponential":
+            # Exponential Learning Rate Decay
+            self.lr = max(self.min_lr, self.max_lr * (self.lr_decay_rate ** self.step/self.lr_decay_steps))
+        elif self.lr_decay_type == "exponential_staircase":
+            # Exponential Learning Rate Decay
+            self.lr = max(self.min_lr, self.max_lr * (self.lr_decay_rate ** (self.step // self.lr_decay_steps)))
+        else:
+            print("Wrong type of learning rate: " + self.lr_decay_type)
+            return 0
+        self.step += 1
+
+    return self.lr
 
     def __del__(self):
         """
@@ -332,6 +382,7 @@ def hard_sigmoid(x):
     upper = tf.convert_to_tensor(1., x.dtype.base_dtype)
     x = tf.clip_by_value(x, lower, upper)
     return x
+
 
 class AttentionControl(tf.keras.layers.Layer):
     """
@@ -387,7 +438,7 @@ class AttentionControl(tf.keras.layers.Layer):
         return self.eval_location_list, self.location_list,
         self.location_mean_list, self.location_stddev_list, self.glimpses_list
 
-    def call(self, output, inputs):
+    def call(self, inputs, output):
         #TODO: First location has to be random
         mean_loc = hard_tanh( self.h_location_out(tf.stop_gradient(output)))
         std_loc = tf.nn.sigmoid( self.h_location_std_out(tf.stop_gradient(output)))
@@ -487,15 +538,30 @@ class Decoder(tf.keras.Model):
         super(Decoder, self).__init__()
         self.batch_size = batch_size
         self.units = units
-        self.lstm = tf.keras.layers.LSTMCell(units, activation=tf.nn.relu, recurrent_initializer='zeros')
+        lstmCell = tf.keras.layers.LSTMCell(units, activation=tf.nn.relu, recurrent_initializer='zeros')
 
+        self.lstm = tf.keras.layers.RNN(
+            lstmCell,
+            return_state = False,
+            return_sequences = False,
+            stateful = False,
+        )
+        # classification
+        self.classification_layer = tf.keras.layers.Dense(10,
+                activation=tf.nn.log_softmax,
+                kernel_initializer = tf.keras.initializers.RandomNormal(mean=0.1))
+        # baseline
+        self.baseline_layer = tf.keras.layers.Dense(1,
+                kernel_initializer = tf.keras.initializers.RandomNormal(mean=0.1))
         # used for attention
         self.attention = AttentionControl(units, batch_size,
                 pixel_scaling, mnist_size, sensorBandwidth, totalSensorBandwidth, depth)
         print('Decoder Initialized')
 
     def initialize_hidden_state(self):
-        return tf.zeros((self.batch_size, self.units))
+        hs = tf.zeros((self.batch_size, self.units))
+        self.lstm.reset_states(states=[hs, hs])
+        return hs
 
     def reset_attention(self):
         self.attention.reset_lists()
@@ -503,15 +569,83 @@ class Decoder(tf.keras.Model):
     def get_attention_lists(self):
         return self.attention.get_lists()
 
-    def call(self, inputs, hidden):
-        # enc_output shape == (batch_size, max_length, hidden_size)
-        glimpse = self.attention(tf.zeros((self.batch_size, self.units)), inputs)
-        print('glimpse: ', glimpse)
-        # passing the concatenated vector to the LSTM
-        output, _ = self.lstm(glimpse, [hidden, hidden])
-        print(output)
-        glimpse = self.attention(output, inputs)
-        print('glimpse: ', glimpse)
+    def call(self, inputs, glimpses):
+        outputs = []
+        output = tf.zeros((self.batch_size, self.units))
+        self.lstm.reset_states(states=[output, output])
+        self.attention.reset_lists()
+        for g in range(glimpses):
+            glimpse = self.attention(inputs, output)
+            print('glimpse: ', glimpse)
+            output = self.lstm(glimpse)
+            outputs.append(output)
+        # look at ONLY THE END of the sequence to predict label
+        action_out = self.classification_layer(output)
+        guess_y = tf.argmax(action_out, axis=-1)
 
-        # return output, glimpse 
-        return glimpse 
+        # Use mean baseline of all glimpses
+        b_pred = []
+        for o in outputs:
+            o = tf.reshape(o, (self.batch_size, self.units))
+            b_pred.append(tf.squeeze(self.baseline_layer(o)))
+            b = tf.transpose(tf.stack(b_pred),perm=[1,0])
+        b_ng = tf.stop_gradient(b)
+
+        return glimpse, b_ng, guess_y 
+
+    def loss(self, correct_y, action_out, baseline):
+        """
+        Get classification and compute losses
+        :param outputs: Sequence of hidden states of the RNN
+        :return: accumulated loss, location policy loss, baseline loss, mean reward, predicted labels,
+         gradient of hybrid loss, gradient of baseline loss
+        """
+
+        max_p_y = tf.argmax(action_out, axis=-1)
+        # reward per example
+        R_batch = tf.cast(tf.equal(max_p_y, correct_y), tf.float32)
+        R = tf.reshape(R_batch, (self.batch_size, 1))
+        R = tf.stop_gradient(R)
+        R = tf.tile(R, [1, self.glimpses])
+
+        # mean reward
+        reward = tf.reduce_mean(R_batch)
+
+        # REINFORCE algorithm for policy network loss
+        # -------
+        # Williams, Ronald J. "Simple statistical gradient-following
+        # algorithms for connectionist reinforcement learning."
+        # Machine learning 8.3-4 (1992): 229-256.
+        # -------
+        # characteristic eligibility taken from sec 6. p.237-239
+        #
+        # d ln(f(m,s,x))   (x - m)
+        # -------------- = -------- with m = mean, x = sample, s = standard deviation
+        #       d m          s**2
+        #
+
+        loc = tf.transpose(tf.stack(self.attention.location_list),perm=[1,0])
+        mean_loc = tf.transpose(tf.stack(self.attention.location_mean_list),perm=[1,0,])
+        std_loc = tf.transpose(tf.stack(self.attention.location_stddev_list),perm=[1,0,])
+        #TODO: Remove the summation of 2D Location while appending to list and evaluate the characteristic elegibility indiviually for each dimension
+
+        Reinforce = tf.reduce_mean((loc -
+            mean_loc)/tf.stop_gradient(std_loc)**2 * (R - baseline))
+        Reinforce_std = tf.reduce_mean((((loc - tf.stop_gradient(mean_loc))**2)-std_loc**2)/(std_loc**3) * (R-b_ng))
+
+        # balances the scale of the two gradient components
+        ratio = 0.75
+
+        # Action Loss
+        J = tf.reduce_sum(action_out * actions_onehot,axis=1)
+
+        # Hybrid Loss
+        # Scale the learning rate for the REINFORCE part by tf.stop_gradient(std_loc)**2, as suggested in (Williams, 1992)
+        #cost = - tf.reduce_mean(J + ratio * tf.reduce_mean(tf.stop_gradient(std_loc))**2* (Reinforce+Reinforce_std), axis=0)
+        cost = - tf.reduce_mean(J + ratio * (Reinforce+Reinforce_std), axis=0)
+
+        # Baseline is trained with MSE
+        b_loss = tf.losses.mean_squared_error(R, baseline)
+
+        return cost, -Reinforce, -Reinforce_std, b_loss, reward
+

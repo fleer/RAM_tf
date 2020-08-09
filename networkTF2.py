@@ -36,7 +36,7 @@ class AttentionControl(tf.keras.layers.Layer):
     Loop function of recurrent attention network
     :return: next glimpse
     """
-    def __init__(self, units, batch_size, pixel_scaling):
+    def __init__(self, units, batch_size, pixel_scaling, mnist_size, sensorBandwidth):
         super(AttentionControl, self).__init__()
         # Number of weights
         hg_size = hl_size = 128
@@ -49,6 +49,10 @@ class AttentionControl(tf.keras.layers.Layer):
         self.location_stddev_list = []
         self.glimpses_list = []
         self.baseline_list = []
+        self.totalSensorBandwidth = sensorBandwidth
+
+        self.training = 1
+        self.mnist_size = mnist_size
 
         # Initialize weights
         self.h_location_std_out = tf.keras.layers.Dense(units,
@@ -107,19 +111,21 @@ class AttentionControl(tf.keras.layers.Layer):
         # Get glimpses
         glimpses = self.glimpseSensor(location, inputs)
         # Append glimpses to list for tensorboard summary
-        self.glimpses_list.append(glimpses[0])
+        tf.print('Glimpse:', glimpses)
+        # self.glimpses_list.append(glimpses[0])
 
         # Process glimpses
-        glimpses = tf.reshape(glimpses, [self.batch_size, self.totalSensorBandwidth])
-        hg = self.h_glimpse_layer(glimpses)
+        # glimpses = tf.reshape(glimpses, [self.batch_size, self.totalSensorBandwidth])
+        # hg = self.h_glimpse_layer(glimpses)
 
-        # Process locations
-        hl = self.h_location_layer(location)
+        # # Process locations
+        # hl = self.h_location_layer(location)
 
-        # Combine glimpses and locations
-        g = tf.nn.relu(self.h_glimpse_layer_sum(hg) + self.h_location_layer_sum(hl))
+        # # Combine glimpses and locations
+        # g = tf.nn.relu(self.h_glimpse_layer_sum(hg) + self.h_location_layer_sum(hl))
 
-        return g
+        # return g
+        return 0
 
     def glimpseSensor(self, normLoc, inputs):
         """
@@ -134,7 +140,7 @@ class AttentionControl(tf.keras.layers.Layer):
         zooms = []
 
         # process each image individually
-        for k in range(self.batch_size):
+        for k in range(int(self.batch_size)):
             imgZooms = []
             one_img = inputs[k,:,:,:]
 
@@ -170,7 +176,7 @@ class AttentionControl(tf.keras.layers.Layer):
         return zooms
 
 class Decoder(tf.keras.Model):
-    def __init__(self, units, batch_size, pixel_scaling):
+    def __init__(self, units, batch_size, pixel_scaling, mnist_size, sensorBandwidth):
         super(Decoder, self).__init__()
         self.batch_size = batch_size
         self.units = units
@@ -179,7 +185,7 @@ class Decoder(tf.keras.Model):
                 recurrent_initializer='zeros')
 
         # used for attention
-        self.attention = AttentionControl(units, pixel_scaling, batch_size)
+        self.attention = AttentionControl(units, pixel_scaling, batch_size, mnist_size, sensorBandwidth)
         print('Decoder Initialized')
 
     def initialize_hidden_state(self):
@@ -191,14 +197,15 @@ class Decoder(tf.keras.Model):
     def get_attention_lists(self):
         return self.attention.get_lists()
 
-    def call(self, x, hidden, inputs):
+    def call(self, inputs):
         # enc_output shape == (batch_size, max_length, hidden_size)
-        glimpse = self.attention(hidden, inputs)
+        glimpse = self.attention(tf.zeros((self.batch_size, self.units)), inputs)
 
         # passing the concatenated vector to the LSTM
-        output, _ = self.lstm(x)
+        #output, _ = self.lstm(inputs)
 
-        return output, glimpse 
+        # return output, glimpse 
+        return glimpse 
 
 class RAM():
     """
@@ -256,20 +263,20 @@ class RAM():
         self.pixel_scaling = pixel_scaling
         self.mnist_size = mnist_size
 
+        # Size of Hidden state
+        hs_size = 256
+
+        self.decoder = Decoder(hs_size, batch_size,
+                self.pixel_scaling, mnist_size, totalSensorBandwidth)
         self.eval_location_list = []
 
-        # Size of Hidden state
-        self.hs_size = 256
 
         # Learning Rate Decay
         if lr_decay_steps != 0 and self.lr_decay_type == "linear":
             self.lr_decay_rate = ((lr - min_lr) /
                                   lr_decay_steps)
 
-        # Create Model
-        outputs = self.model()
-
-    def model(self):
+    def model(self, X):
         """
         Core Network of the RAM
         :return: Sequence of hidden states of the RNN
@@ -279,12 +286,13 @@ class RAM():
         self.location_stddev_list = []
         self.glimpses_list = []
 
-        decoder = Decoder(self.hs_size, self.batch_size, self.pixel_scaling)
-        decoder.initialize_hidden_state()
+        self.decoder.initialize_hidden_state()
 
         # for i in self.glimpses:
 
         #outputs, _ = seq2seq.rnn_decoder(inputs, initial_state, lstm_cell, loop_function=self.get_next_input)
 
         #return outputs
-        return 'Test'
+        # outputs, _ = self.decoder(X)
+        outputs = self.decoder(X)
+        return outputs

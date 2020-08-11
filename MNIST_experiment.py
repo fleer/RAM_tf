@@ -1,5 +1,5 @@
 from MNIST_Processing import MNIST
-from networkTF2 import RAM
+#from networkTF2 import RAM
 import numpy as np
 import tensorflow as tf
 from collections import defaultdict
@@ -27,8 +27,12 @@ class Experiment():
         #   Reading the parameters
         #   ================
 
-        self.learning_rate_decay_type = PARAMETERS.LEARNING_RATE_DECAY_TYPE
+        self.lr_decay_type = PARAMETERS.LEARNING_RATE_DECAY_TYPE
         self.min_lr = PARAMETERS.MIN_LEARNING_RATE
+        self.max_lr = PARAMETERS.LEARNING_RATE
+        self.learning_rate = PARAMETERS.LEARNING_RATE
+        self.lr_decay_rate = PARAMETERS.LEARNING_RATE_DECAY
+        self.lr_decayt_steps = PARAMETERS.LEARNING_RATE_DECAY_STEPS
         self.momentum = PARAMETERS.MOMENTUM
         self.optimizer = PARAMETERS.OPTIMIZER
         self.batch_size = PARAMETERS.BATCH_SIZE
@@ -63,8 +67,6 @@ class Experiment():
 
         self.mnist = MNIST(DOMAIN_OPTIONS.MNIST_SIZE, self.batch_size, DOMAIN_OPTIONS.TRANSLATE, DOMAIN_OPTIONS.TRANSLATED_MNIST_SIZE, DOMAIN_OPTIONS.MONTE_CARLO)
 
-        # Create file writer
-        summary_writer = tf.summary.create_file_writer("summary")
 
         #   ================
         #   Creating the RAM
@@ -75,7 +77,10 @@ class Experiment():
         #         PARAMETERS.LEARNING_RATE, PARAMETERS.LEARNING_RATE_DECAY, PARAMETERS.LEARNING_RATE_DECAY_STEPS, PARAMETERS.LEARNING_RATE_DECAY_TYPE,
         #         PARAMETERS.MIN_LEARNING_RATE)
 
-        self.ram = Decoder(256, self.batch_size*self.M, pixel_scaling, mnist_size, DOMAIN_OPTIONS.SENSOR, totalSensorBandwidth, DOMAIN_OPTIONS.DEPTH)
+        self.ram = Decoder(256, self.batch_size*self.M, pixel_scaling,
+                mnist_size, DOMAIN_OPTIONS.SENSOR, totalSensorBandwidth,
+                DOMAIN_OPTIONS.DEPTH, DOMAIN_OPTIONS.NGLIMPSES)
+
 
         # TODO: Port to TF2
     #    self.saver = tf.train.Saver(max_to_keep=5)
@@ -119,7 +124,7 @@ class Experiment():
                 X, Y, Y_S = self.mnist.get_batch(self.batch_size, data_type="test")
                 self.test_images = X
 
-            _, pred_action = self.ram.evaluate(X,Y)
+            _, pred_action, _= self.ram(X)
 
             # Get Mean of the M samples for the same data for evaluating performance
             # -----------------------------------
@@ -159,125 +164,163 @@ class Experiment():
         :param session: Tensorflow session
         :return:
         """
+
+        """
+        Function to control the linear decay
+        of the learning rate
+        :return: New learning rate
+        """
+        #if self.lr_decay_type == "linear":
+        #    # Linear Learning Rate Decay
+        #    def learning_rate_decay(epoch, lr):
+        #        new_lr = max(self.min_lr, self.lr - self.lr_decay_rate)
+        #        return new_lr
+        #elif self.lr_decay_type == "exponential":
+        #    # Exponential Learning Rate Decay
+        #    def learning_rate_decay(epoch, lr):
+        #        new_lr = max(self.min_lr, self.max_lr * (self.lr_decay_rate **
+        #            epoch/self.lr_decay_steps))
+        #        return new_lr
+        #elif self.lr_decay_type == "exponential_staircase":
+        #    # Exponential Learning Rate Decay
+        #    def learning_rate_decay(epoch, lr):
+        #        new_lr = max(self.min_lr, self.max_lr * (self.lr_decay_rate **
+        #            (epoch // self.lr_decay_steps)))
+        #        return new_lr
+        #else:
+        #    print("Wrong type of learning rate: " + self.lr_decay_type)
+        #    def learning_rate_decay(self, epoch, lr):
+        #        return new_lr
+
+        #callback = tf.keras.callbacks.LearningRateScheduler(learning_rate_decay)
+        #TODO: Wirte own lr Decay class
         # Choose Optimizer
         if self.optimizer == "rmsprop":
             trainer = tf.keras.optimizers.RMSProp(learning_rate=self.learning_rate)
         elif self.optimizer == "adam":
             trainer = tf.keras.optimizers.Adam(learning_rate=self.learning_rate)
         elif self.optimizer == "adadelta":
-            trainer = tf.keras.optimizers.Adadelta(learning_rate=self.learning_rate)
+            trainer = tf.keras.optimizers.Adadelta(learning_rate=self.learning)
         elif self.optimizer == 'sgd':
-            trainer = tf.keras.optimizers.SGD(learning_rate=self.learning_rate, momentum=self.momentum, use_nesterov=True)
+            trainer = tf.keras.optimizers.SGD(learning_rate=self.learning_rate, momentum=self.momentum, nesterov=True)
         else:
             raise ValueError("unrecognized update: {}".format(self.optimizer))
 
         total_epochs = 0
         validation_accuracy = 0
-        # Initial Performance Check
-        # performance_accuracy, performance_accuracy_std = self.performance_run(total_epochs)
-        # logging.info("Epoch={:d}: >>> Test-Accuracy: {:.4f} "
-        #               "+/- {:.6f}".format(total_epochs, performance_accuracy, performance_accuracy_std))
         num_train_data = len(self.mnist.dataset.train._images)
+        # Create file writer
+        summary_writer = tf.summary.create_file_writer("summary")
 
-        patience_steps = 0
-        early_stopping_accuracy = 0.
-        visualize_classification = True
-        for _ in range(self.max_epochs):
-            # summary = tf.Summary()
-            start_time = time.time()
-            train_accuracy = 0
-            train_accuracy_sqrt = 0
-            a_loss = []
-            l_loss = []
-            s_loss = []
-            b_loss = []
-            # while total_epochs == self.mnist.dataset.train.epochs_completed:
-            X, Y, _= self.mnist.get_batch(self.batch_size, data_type="train")
-        #        _, pred_action, nnl_loss, reinforce_loss, reinforce_std_loss, baseline_loss = self.ram.train(X,Y)
-            if (visualize_classification):
-                self.visualize(X[:self.batch_size],Y[:self.batch_size], Y[:self.batch_size])
-                visualize_classification = False
-            state = self.ram.initialize_hidden_state()
-            with tf.GradientTape() as tape:
-                glimpse, pred, baseline = self.ram(X, state)
-                cost, Reinforce, Reinforce_std, b_loss, reward 
-            # TODO: Implement gradient clipping
-            gradients_op_a = tape.gradient(cost, self.ram.trainable_variables)
-            gradients_op_b = tape.gradient(b_loss, self.ram.trainable_variables)
-            trainer.apply_gradients(zip(gradients_op_a, self.ram.trainable_variables))
-            trainer.apply_gradients(zip(gradients_op_b, self.ram.trainable_variables))
+        # Initial Performance Check
+        performance_accuracy, performance_accuracy_std = self.performance_run(total_epochs)
+        logging.info("Epoch={:d}: >>> Test-Accuracy: {:.4f} "
+                       "+/- {:.6f}".format(total_epochs, performance_accuracy, performance_accuracy_std))
+        tf.summary.scalar("Accuracy", performance_accuracy, step=total_epochs)
+        summary_writer.flush()
+        with summary_writer.as_default():
+            patience_steps = 0
+            early_stopping_accuracy = 0.
+            visualize_classification = True
+            logging.info("Start Training")
+            for _ in range(self.max_epochs):
+                start_time = time.time()
+                train_accuracy = 0
+                train_accuracy_sqrt = 0
+                a_loss = []
+                l_loss = []
+                s_loss = []
+                b_loss = []
 
-            # Get data for Tensorboard summary
-            take_first_zoom = []
-            for gl in range(self.glimpses):
-                take_first_zoom.append(self.glimpses_list[gl][0])
-            self.summary_zooms = tf.summary.image("Zooms", tf.reshape(take_first_zoom, (self.glimpses, self.sensorBandwidth, self.sensorBandwidth, 1)), max_outputs=self.glimpses)
+                while total_epochs == self.mnist.dataset.train.epochs_completed:
+                    X, Y, _= self.mnist.get_batch(self.batch_size, data_type="train")
+                    with tf.GradientTape() as tape:
+                        glimpse, pred, baseline = self.ram(X)
+                        nnl_loss, reinforce_loss, reinforce_std_loss, baseline_loss, reward = self.ram.loss(Y, pred, baseline)
+                        # TODO: Implement baseline
+                        gradients_op_a = tape.gradient(nnl_loss, self.ram.variables)
+                        #gradients_op_b = tape.gradient(b_loss, self.ram.baseline_layer)
+                    trainer.apply_gradients(zip(gradients_op_a, self.ram.variables))
+                    # trainer.apply_gradients(zip(gradients_op_b, self.ram.baseline_layer))
 
-                # a_loss.append(nnl_loss)
-                # l_loss.append(reinforce_loss)
-                # s_loss.append(reinforce_std_loss)
-                # b_loss.append(baseline_loss)
-            # total_epochs += 1
-            # lr = self.ram.learning_rate_decay()
+                    max_p_y = tf.argmax(pred, axis=-1)
+                    train_accuracy += np.sum(np.equal(max_p_y, Y).astype(np.float32), axis=-1)
+                    train_accuracy_sqrt+= np.sum((np.equal(max_p_y, Y).astype(np.float32))**2, axis=-1)
+                    a_loss.append(nnl_loss)
+                    l_loss.append(reinforce_loss)
+                    s_loss.append(reinforce_std_loss)
+                    b_loss.append(baseline_loss)
 
-        #    # Train Accuracy
-        #    train_accuracy = train_accuracy/(num_train_data*self.M)
+                # Get data for Tensorboard summary
+                eval_location_list, location_list, location_mean_list, location_stddev_list, glimpses_list = self.ram.get_attention_lists()
 
-        #    if total_epochs % 10 == 0:
-        #        # Test Accuracy
-        #        performance_accuracy, performance_accuracy_std = self.performance_run(total_epochs)
+                # take_first_zoom = []
+                # for gl in range(self.glimpses):
+                #     take_first_zoom.append(self.glimpses_list[gl][0])
+                # self.summary_zooms = tf.summary.image("Zooms", tf.reshape(take_first_zoom, (self.glimpses, self.sensorBandwidth, self.sensorBandwidth, 1)), max_outputs=self.glimpses)
 
-        #        # Print out Infos
-        #        logging.info("Epoch={:d}: >>> Test-Accuracy: {:.4f} +/- {:.6f}".format(total_epochs, performance_accuracy, performance_accuracy_std))
+                total_epochs += 1
 
-        #        # Some visualization
-        #        img, zooms = self.ram.get_images(np.vstack([self.test_images[0]]*self.batch_size*self.M))
 
-        #        self.summary_writer.add_summary(img, total_epochs)
-        #        self.summary_writer.add_summary(zooms, total_epochs)
-        #        self.test_images = []
-        #    else:
-        #        # Validation Accuracy
-        #        validation_accuracy, vaidation_accuracy_std = self.performance_run(total_epochs, validation=True)
+                # Train Accuracy
+                train_accuracy = train_accuracy/(num_train_data*self.M)
+                train_accuracy_std = np.sqrt(((train_accuracy_sqrt/(num_train_data*self.M)) - train_accuracy**2)/(num_train_data*self.M))
 
-        #        train_accuracy_std = np.sqrt(((train_accuracy_sqrt/(num_train_data*self.M)) - train_accuracy**2)/(num_train_data*self.M))
+                # self.visualize(X[:self.batch_size],Y[:self.batch_size], Y[:self.batch_size])
+                logging.info("Epoch={:d}: >>> Train-Accuracy: {:.4f} +/- {:.6f}".format(total_epochs, train_accuracy, train_accuracy_std))
+                if total_epochs % 10 == 0:
+                    # Test Accuracy
+                    performance_accuracy, performance_accuracy_std = self.performance_run(total_epochs)
 
-        #        # Print out Infos
-        #        logging.info("Epoch={:d}: >>> examples/s: {:.2f}, Accumulated-Loss: {:.4f}, Location-Mean Loss: {:.4f}, Location-Stddev Loss: {:.4f}, Baseline-Loss: {:.4f}, "
-        #                     "Learning Rate: {:.6f}, Train-Accuracy: {:.4f} +/- {:.6f}, "
-        #                     "Validation-Accuracy: {:.4f} +/- {:.6f}".format(total_epochs,
-        #                         float(num_train_data)/float(time.time()-start_time), np.mean(a_loss), np.mean(l_loss), np.mean(s_loss), np.mean(b_loss),
-        #                         lr, train_accuracy, train_accuracy_std, validation_accuracy, vaidation_accuracy_std))
+                    # Print out Infos
+                    logging.info("Epoch={:d}: >>> Test-Accuracy: {:.4f} +/- {:.6f}".format(total_epochs, performance_accuracy, performance_accuracy_std))
 
-        #        # Early Stopping
-        #        if early_stopping and early_stopping_accuracy < validation_accuracy:
-        #            early_stopping_accuracy = validation_accuracy
-        #            patience_steps = 0
-        #        else:
-        #            patience_steps += 1
+            #        # Some visualization
+            #        img, zooms = self.ram.get_images(np.vstack([self.test_images[0]]*self.batch_size*self.M))
 
-        #    # Gather information for Tensorboard
-        #    summary.value.add(tag='Losses/Accumulated Loss', simple_value=float(np.mean(a_loss)))
-        #    summary.value.add(tag='Losses/Location: Mean Loss', simple_value=float(np.mean(l_loss)))
-        #    summary.value.add(tag='Losses/Location: Stddev Loss', simple_value=float(np.mean(s_loss)))
-        #    summary.value.add(tag='Losses/Baseline Loss', simple_value=float(np.mean(b_loss)))
-        #    summary.value.add(tag='Accuracy/Performance', simple_value=float(performance_accuracy))
-        #    summary.value.add(tag='Accuracy/Validation', simple_value=float(validation_accuracy))
-        #    summary.value.add(tag='Accuracy/Train', simple_value=float(train_accuracy))
+            #        self.summary_writer.add_summary(img, total_epochs)
+            #        self.summary_writer.add_summary(zooms, total_epochs)
+            #        self.test_images = []
+                else:
+                    # Validation Accuracy
+                    validation_accuracy, vaidation_accuracy_std = self.performance_run(total_epochs, validation=True)
 
-        #    self.summary_writer.add_summary(summary, total_epochs)
 
-        #    self.summary_writer.flush()
+                    # Print out Infos
+                    logging.info("Epoch={:d}: >>> examples/s: {:.2f}, Accumulated-Loss: {:.4f}, Location-Mean Loss: {:.4f}, Location-Stddev Loss: {:.4f}, Baseline-Loss: {:.4f}, "
+                                 "Learning Rate: {:.6f}, Train-Accuracy: {:.4f} +/- {:.6f}, "
+                                 "Validation-Accuracy: {:.4f} +/- {:.6f}".format(total_epochs,
+                                     float(num_train_data)/float(time.time()-start_time), np.mean(a_loss), np.mean(l_loss), np.mean(s_loss), np.mean(b_loss),
+                                     lr, train_accuracy, train_accuracy_std, validation_accuracy, vaidation_accuracy_std))
 
-        #    # Early Stopping
-        #    if patience_steps > patience:
-        #        self.saver.save(session, './Model/best_model-' + str(total_epochs) + '.cptk')
-        #        logging.info("Early Stopping at Epoch={:d}! Validation Accuracy is not increasing. The best Newtork will be saved!".format(total_epochs))
-        #        return 0
+                    # Early Stopping
+                    if early_stopping and early_stopping_accuracy < validation_accuracy:
+                        early_stopping_accuracy = validation_accuracy
+                        patience_steps = 0
+                    else:
+                        patience_steps += 1
 
-        #    # Save Model
-        #    if total_epochs % 100 == 0:
-        #        self.saver.save(session, save_path='./Model', global_step=total_epochs)
+                # Gather information for Tensorboard
+                tf.summary.scalar(name='Losses/Accumulated Loss',
+                    data=float(np.mean(a_loss), step=total_epochs))
+                tf.summary.scalar(name='Losses/Location: Mean Loss', data=float(np.mean(l_loss)), step=total_epochs)
+                tf.summary.scalar(name='Losses/Location: Stddev Loss', data=float(np.mean(s_loss)), step=total_epochs)
+                tf.summary.scalar(name='Losses/Baseline Loss', data=float(np.mean(b_loss)))
+                tf.summary.scalar(name='Accuracy/Performance', data=float(performance_accuracy), step=total_epochs)
+                tf.summary.scalar(name='Accuracy/Validation', data=float(validation_accuracy), step=total_epochs)
+                tf.summary.scalar(name='Accuracy/Train', data=float(train_accuracy), step=total_epochs)
+
+                summary_writer.flush()
+
+            #    # Early Stopping
+            #    if patience_steps > patience:
+            #        self.saver.save(session, './Model/best_model-' + str(total_epochs) + '.cptk')
+            #        logging.info("Early Stopping at Epoch={:d}! Validation Accuracy is not increasing. The best Newtork will be saved!".format(total_epochs))
+            #        return 0
+
+            #    # Save Model
+            #    if total_epochs % 100 == 0:
+            #        self.saver.save(session, save_path='./Model', global_step=total_epochs)
 
     def visualize(self, batch_x, batch_y, batch_pred):
         """Plot a dictionary of figures.
@@ -294,17 +337,17 @@ class Experiment():
         # TODO: Why?
         try:
             if not self._fig is None:
-                # self._fig.clear()
-                # self._fig, self.axeslist = plt.subplots(ncols=n+1, nrows=n+1)
-                print("Test")
+                 self._fig.clear()
+                 self._fig, self.axeslist = plt.subplots(ncols=n, nrows=n)
         except:
-            self._fig, self.axeslist = plt.subplots(ncols=n, nrows=n+1)
+            self._fig, self.axeslist = plt.subplots(ncols=n, nrows=n)
 
         for ind in range(len(batch_x)):
             title = batch_pred[ind]
             self.axeslist.ravel()[ind].imshow(batch_x[ind,:,:,0], cmap=plt.jet())
             self.axeslist.ravel()[ind].set_title(title)
             self.axeslist.ravel()[ind].set_axis_off()
+
         # plt.tight_layout() # optional
         canvas = plt.get_current_fig_manager().canvas
         canvas.draw()
@@ -326,27 +369,6 @@ class Experiment():
             json.dump(self.results, f, indent=4, sort_keys=True)
         f.close()
 
-    def learning_rate_decay(self):
-        """
-        Function to control the linear decay
-        of the learning rate
-        :return: New learning rate
-        """
-        if self.lr_decay_type == "linear":
-            # Linear Learning Rate Decay
-            self.lr = max(self.min_lr, self.lr - self.lr_decay_rate)
-        elif self.lr_decay_type == "exponential":
-            # Exponential Learning Rate Decay
-            self.lr = max(self.min_lr, self.max_lr * (self.lr_decay_rate ** self.step/self.lr_decay_steps))
-        elif self.lr_decay_type == "exponential_staircase":
-            # Exponential Learning Rate Decay
-            self.lr = max(self.min_lr, self.max_lr * (self.lr_decay_rate ** (self.step // self.lr_decay_steps)))
-        else:
-            print("Wrong type of learning rate: " + self.lr_decay_type)
-            return 0
-        self.step += 1
-
-    return self.lr
 
     def __del__(self):
         """
@@ -410,9 +432,7 @@ class AttentionControl(tf.keras.layers.Layer):
         self.mnist_size = mnist_size
 
         # Initialize weights
-        self.h_location_std_out = tf.keras.layers.Dense(2,
-                kernel_initializer = tf.keras.initializers.RandomNormal(mean=0.1))
-        self.b_location_out = tf.keras.layers.Dense(1,
+        self.h_location_std_out = tf.keras.layers.Dense(2, 
                 kernel_initializer = tf.keras.initializers.RandomNormal(mean=0.1))
         self.h_location_out = tf.keras.layers.Dense(2,
                 kernel_initializer = tf.keras.initializers.RandomNormal(mean=0.1))
@@ -435,26 +455,27 @@ class AttentionControl(tf.keras.layers.Layer):
         self.baseline_list = []
 
     def get_lists(self):
-        return self.eval_location_list, self.location_list,
-        self.location_mean_list, self.location_stddev_list, self.glimpses_list
+        return self.eval_location_list, self.location_list, self.location_mean_list, self.location_stddev_list, self.glimpses_list
 
     def call(self, inputs, output):
         #TODO: First location has to be random
         mean_loc = hard_tanh( self.h_location_out(tf.stop_gradient(output)))
         std_loc = tf.nn.sigmoid( self.h_location_std_out(tf.stop_gradient(output)))
         # Clip location between [-1,1] and adjust its scale
-        sample_loc = hard_tanh(mean_loc + tf.cond(self.training,
-            lambda: tf.random.normal(mean_loc.get_shape(), 0, std_loc), lambda: 0. ))
+        #sample_loc = hard_tanh(mean_loc + tf.cond(self.training,
+        #    lambda: tf.random.normal(mean_loc.get_shape(), 0, std_loc), lambda: 0. ))
+        sample_loc = hard_tanh(mean_loc + tf.random.normal(mean_loc.get_shape(), 0, std_loc))
         loc = sample_loc * self.pixel_scaling
+        glimpse = self.Glimpse_Net(loc, inputs)
 
         # Append stuff to lists
-        self.baseline_list.append(self.b_location_out(output))
         self.location_mean_list.append(tf.reduce_sum(mean_loc,1))
         self.location_stddev_list.append(tf.reduce_sum(std_loc,1))
         self.location_list.append(tf.reduce_sum(sample_loc,1))
+        self.glimpses_list.append(glimpse)
         self.eval_location_list.append(loc)
 
-        return self.Glimpse_Net(loc, inputs)
+        return glimpse
 
     def Glimpse_Net(self, location, inputs):
         """
@@ -466,11 +487,9 @@ class AttentionControl(tf.keras.layers.Layer):
         # Get glimpses
         glimpses = self.glimpseSensor(location, inputs)
         # Append glimpses to list for tensorboard summary
-        print('Glimpse:', glimpses)
         self.glimpses_list.append(glimpses[0])
 
         # Process glimpses
-        print("Bandwidth:", self.sensorBandwidth)
         glimpses = tf.reshape(glimpses, [self.batch_size, self.totalSensorBandwidth])
         hg = self.h_glimpse_layer(glimpses)
 
@@ -534,18 +553,14 @@ class AttentionControl(tf.keras.layers.Layer):
 
 class Decoder(tf.keras.Model):
     def __init__(self, units, batch_size, pixel_scaling, mnist_size,
-            sensorBandwidth, totalSensorBandwidth, depth):
+            sensorBandwidth, totalSensorBandwidth, depth, num_glimpses):
         super(Decoder, self).__init__()
         self.batch_size = batch_size
         self.units = units
-        lstmCell = tf.keras.layers.LSTMCell(units, activation=tf.nn.relu, recurrent_initializer='zeros')
+        self.glimpses = num_glimpses
 
-        self.lstm = tf.keras.layers.RNN(
-            lstmCell,
-            return_state = False,
-            return_sequences = False,
-            stateful = False,
-        )
+        self.lstm = tf.keras.layers.LSTMCell(units, activation=tf.nn.relu, recurrent_initializer='zeros')
+
         # classification
         self.classification_layer = tf.keras.layers.Dense(10,
                 activation=tf.nn.log_softmax,
@@ -556,12 +571,6 @@ class Decoder(tf.keras.Model):
         # used for attention
         self.attention = AttentionControl(units, batch_size,
                 pixel_scaling, mnist_size, sensorBandwidth, totalSensorBandwidth, depth)
-        print('Decoder Initialized')
-
-    def initialize_hidden_state(self):
-        hs = tf.zeros((self.batch_size, self.units))
-        self.lstm.reset_states(states=[hs, hs])
-        return hs
 
     def reset_attention(self):
         self.attention.reset_lists()
@@ -569,29 +578,29 @@ class Decoder(tf.keras.Model):
     def get_attention_lists(self):
         return self.attention.get_lists()
 
-    def call(self, inputs, glimpses):
+    def call(self, inputs):
         outputs = []
         output = tf.zeros((self.batch_size, self.units))
-        self.lstm.reset_states(states=[output, output])
+        hidden = [output, output]
+        #self.lstm.reset_states(states=[output, output])
         self.attention.reset_lists()
-        for g in range(glimpses):
+        for g in range(self.glimpses):
             glimpse = self.attention(inputs, output)
-            print('glimpse: ', glimpse)
-            output = self.lstm(glimpse)
+            output, hidden = self.lstm(glimpse, hidden)
             outputs.append(output)
         # look at ONLY THE END of the sequence to predict label
         action_out = self.classification_layer(output)
-        guess_y = tf.argmax(action_out, axis=-1)
 
         # Use mean baseline of all glimpses
-        b_pred = []
-        for o in outputs:
-            o = tf.reshape(o, (self.batch_size, self.units))
-            b_pred.append(tf.squeeze(self.baseline_layer(o)))
-            b = tf.transpose(tf.stack(b_pred),perm=[1,0])
-        b_ng = tf.stop_gradient(b)
+        #b_pred = []
+        #for o in outputs:
+        #    o = tf.reshape(o, (self.batch_size, self.units))
+        #    b_pred.append(tf.squeeze(self.baseline_layer(o)))
+        #    b = tf.transpose(tf.stack(b_pred),perm=[1,0])
+        #b_ng = tf.stop_gradient(b)
+        b_ng= tf.zeros((self.batch_size, 1))
 
-        return glimpse, b_ng, guess_y 
+        return glimpse, action_out, b_ng
 
     def loss(self, correct_y, action_out, baseline):
         """
@@ -602,6 +611,7 @@ class Decoder(tf.keras.Model):
         """
 
         max_p_y = tf.argmax(action_out, axis=-1)
+        actions_onehot = tf.one_hot(max_p_y, 10, dtype=tf.float32)
         # reward per example
         R_batch = tf.cast(tf.equal(max_p_y, correct_y), tf.float32)
         R = tf.reshape(R_batch, (self.batch_size, 1))
@@ -631,7 +641,9 @@ class Decoder(tf.keras.Model):
 
         Reinforce = tf.reduce_mean((loc -
             mean_loc)/tf.stop_gradient(std_loc)**2 * (R - baseline))
-        Reinforce_std = tf.reduce_mean((((loc - tf.stop_gradient(mean_loc))**2)-std_loc**2)/(std_loc**3) * (R-b_ng))
+        Reinforce_std = tf.reduce_mean((((loc -
+            tf.stop_gradient(mean_loc))**2)-std_loc**2)/(std_loc**3) *
+            (R-baseline))
 
         # balances the scale of the two gradient components
         ratio = 0.75
@@ -645,7 +657,8 @@ class Decoder(tf.keras.Model):
         cost = - tf.reduce_mean(J + ratio * (Reinforce+Reinforce_std), axis=0)
 
         # Baseline is trained with MSE
-        b_loss = tf.losses.mean_squared_error(R, baseline)
+        #b_loss = tf.keras.losses.MSE(R, baseline)
+        b_loss = 0
 
         return cost, -Reinforce, -Reinforce_std, b_loss, reward
 

@@ -51,7 +51,7 @@ class MNIST_DOMAIN_OPTIONS:
     # Number of Monte-Carlo Samples of the location policy,
     # that should be created for each image
     # 1 sample --> Only one evaluation per image
-    MONTE_CARLO = 10
+    MONTE_CARLO = 1
 
 class PARAMETERS:
     """

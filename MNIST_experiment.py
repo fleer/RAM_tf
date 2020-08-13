@@ -203,8 +203,8 @@ class Experiment():
         #TODO: Wirte own lr Decay class
         # Choose Optimizer
         if self.optimizer == "rmsprop":
-            trainer = tf.keras.optimizers.RMSProp(learning_rate=lr_schedule)
-            trainer_b = tf.keras.optimizers.RMSProp(learning_rate=lr_schedule)
+            trainer = tf.keras.optimizers.RMSprop(learning_rate=lr_schedule)
+            trainer_b = tf.keras.optimizers.RMSprop(learning_rate=lr_schedule)
         elif self.optimizer == "adam":
             trainer = tf.keras.optimizers.Adam(learning_rate=lr_schedule)
             trainer_b = tf.keras.optimizers.Adam(learning_rate=lr_schedule)
@@ -223,13 +223,13 @@ class Experiment():
         # Create file writer
         summary_writer = tf.summary.create_file_writer("summary")
 
-        # Initial Performance Check
-        performance_accuracy, performance_accuracy_std = self.performance_run(total_epochs)
-        logging.info("Epoch={:d}: >>> Test-Accuracy: {:.4f} "
-                       "+/- {:.6f}".format(total_epochs, performance_accuracy, performance_accuracy_std))
-        tf.summary.scalar("Accuracy", performance_accuracy, step=total_epochs)
-        summary_writer.flush()
         with summary_writer.as_default():
+            # Initial Performance Check
+            performance_accuracy, performance_accuracy_std = self.performance_run(total_epochs)
+            logging.info("Epoch={:d}: >>> Test-Accuracy: {:.4f} "
+                           "+/- {:.6f}".format(total_epochs, performance_accuracy, performance_accuracy_std))
+            tf.summary.scalar("Accuracy", performance_accuracy, step=total_epochs)
+            summary_writer.flush()
             patience_steps = 0
             early_stopping_accuracy = 0.
             visualize_classification = True
@@ -266,6 +266,8 @@ class Experiment():
                     l_loss.append(reinforce_loss)
                     s_loss.append(reinforce_std_loss)
                     b_loss.append(baseline_loss)
+                    # print("Cost: ", nnl_loss)
+                    # print("Baseline Loss: ", baseline_loss)
 
                 # Get data for Tensorboard summary
                 eval_location_list, location_list, location_mean_list, location_stddev_list, glimpses_list = self.ram.get_attention_lists()
@@ -316,10 +318,10 @@ class Experiment():
                         patience_steps += 1
 
                 # Gather information for Tensorboard
-                tf.summary.scalar(name='Losses/Accumulated Loss', data=float(np.mean(a_loss), step=total_epochs)
+                tf.summary.scalar(name='Losses/Accumulated Loss', data=float(np.mean(a_loss)), step=total_epochs)
                 tf.summary.scalar(name='Losses/Location: Mean Loss', data=float(np.mean(l_loss)), step=total_epochs)
                 tf.summary.scalar(name='Losses/Location: Stddev Loss', data=float(np.mean(s_loss)), step=total_epochs)
-                tf.summary.scalar(name='Losses/Baseline Loss', data=float(np.mean(b_loss)))
+                tf.summary.scalar(name='Losses/Baseline Loss', data=float(np.mean(b_loss)), step=total_epochs)
                 tf.summary.scalar(name='Accuracy/Performance', data=float(performance_accuracy), step=total_epochs)
                 tf.summary.scalar(name='Accuracy/Validation', data=float(validation_accuracy), step=total_epochs)
                 tf.summary.scalar(name='Accuracy/Train', data=float(train_accuracy), step=total_epochs)

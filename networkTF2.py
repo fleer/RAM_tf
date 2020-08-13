@@ -23,6 +23,7 @@ class AttentionControl(tf.keras.layers.Layer):
         self.location_stddev_list = []
         self.glimpses_list = []
         self.baseline_list = []
+        self.first_glimpse = True
         self.totalSensorBandwidth = totalSensorBandwidth
         self.sensorBandwidth = sensorBandwidth # fixed resolution of sensor
         self.training = 1
@@ -58,8 +59,10 @@ class AttentionControl(tf.keras.layers.Layer):
     def call(self, inputs, output):
         #TODO: First location has to be random
         if (self.first_glimpse):
-            mean_loc = tf.random.uniform(shape=(self.batch_size, 2), minval=-1, maxval=1)
-            std_loc = tf.random.uniform(shape=(self.batch_size, 2), minval=-1, maxval=1)
+            mean_loc = tf.random.uniform(shape=(self.batch_size, 2), minval=-1.,
+                    maxval=1., dtype=tf.float32)
+            std_loc = tf.random.uniform(shape=(self.batch_size, 2),
+                    minval=-1., maxval=1., dtype=tf.float32)
             self.first_glimpse = False
         else:
             mean_loc = self.hard_tanh( self.h_location_out(output))
@@ -69,7 +72,8 @@ class AttentionControl(tf.keras.layers.Layer):
         # Clip location between [-1,1] and adjust its scale
         #sample_loc = self.hard_tanh(mean_loc + tf.cond(self.training,
         #    lambda: tf.random.normal(mean_loc.get_shape(), 0, std_loc), lambda: 0. ))
-        sample_loc = self.hard_tanh(mean_loc + tf.random.normal(mean_loc.get_shape(), 0, std_loc))
+        sample_loc = self.hard_tanh(mean_loc +
+                tf.random.normal(mean_loc.get_shape(), 0.0, std_loc))
         sample_loc = tf.where(tf.math.is_nan(sample_loc), tf.zeros_like(sample_loc), sample_loc)
         loc = sample_loc * self.pixel_scaling
         glimpse = self.Glimpse_Net(loc, inputs)
@@ -192,7 +196,7 @@ class Baseline(tf.keras.Model):
         self.units = units
 
         # baseline
-        self.baseline_layer = tf.keras.layers.Dense(1,
+        self.baseline_layer = tf.keras.layers.Dense(1, activation='relu',
                 kernel_initializer = tf.keras.initializers.RandomNormal(mean=0.1))
 
     def call(self, outputs):
@@ -200,7 +204,7 @@ class Baseline(tf.keras.Model):
         # Use mean baseline of all glimpses
         b_pred = []
         for o in outputs:
-            o = tf.reshape(tf.stop_gradient(o), (self.batch_size, self.units))
+            o = tf.reshape(o, (self.batch_size, self.units))
             b_pred.append(tf.squeeze(self.baseline_layer(o)))
             b = tf.transpose(tf.stack(b_pred),perm=[1,0])
         return b
@@ -213,14 +217,11 @@ class RAM(tf.keras.Model):
         self.units = units
         self.glimpses = num_glimpses
 
-        self.lstm = tf.keras.layers.LSTMCell(units, activation=tf.nn.relu, recurrent_initializer='zeros')
+        self.lstm = tf.keras.layers.LSTMCell(units, activation=tf.nn.relu) #, recurrent_initializer='zeros')
 
         # classification
         self.classification_layer = tf.keras.layers.Dense(10,
                 activation=tf.nn.log_softmax,
-                kernel_initializer = tf.keras.initializers.RandomNormal(mean=0.1))
-        # baseline
-        self.baseline_layer = tf.keras.layers.Dense(1,
                 kernel_initializer = tf.keras.initializers.RandomNormal(mean=0.1))
         # used for attention
         self.attention = AttentionControl(units, batch_size,
@@ -238,7 +239,7 @@ class RAM(tf.keras.Model):
         hidden = [output, output]
         #self.lstm.reset_states(states=[output, output])
         self.attention.reset_lists()
-        for g in range(self.glimpses):
+        for _ in range(self.glimpses):
             glimpse = self.attention(inputs, output)
             output, hidden = self.lstm(glimpse, hidden)
             outputs.append(output)
@@ -256,7 +257,7 @@ class RAM(tf.keras.Model):
         """
 
         max_p_y = tf.argmax(action_out, axis=-1)
-        actions_onehot = tf.one_hot(max_p_y, 10, dtype=tf.float32)
+        actions_onehot = tf.one_hot(max_p_y, 10)
         # reward per example
         R_batch = tf.cast(tf.equal(max_p_y, correct_y), tf.float32)
         R = tf.reshape(R_batch, (self.batch_size, 1))
@@ -284,11 +285,18 @@ class RAM(tf.keras.Model):
         std_loc = tf.transpose(tf.stack(self.attention.location_stddev_list),perm=[1,0,])
         #TODO: Remove the summation of 2D Location while appending to list and evaluate the characteristic elegibility indiviually for each dimension
 
+        print("loc: ", loc)
+        print("Mean loc: ", mean_loc)
+        print("Std loc: ", std_loc)
+
         Reinforce = tf.reduce_mean((loc -
-            mean_loc)/tf.stop_gradient(std_loc)**2 * (R - baseline))
+            mean_loc)/std_loc**2 * (R - baseline))
         Reinforce_std = tf.reduce_mean((((loc -
-            tf.stop_gradient(mean_loc))**2)-std_loc**2)/(std_loc**3) *
+            mean_loc)**2)-std_loc**2)/(std_loc**3) *
             (R-baseline))
+
+        print("Reinforce: ", Reinforce)
+        print("Reinforce Std: ", Reinforce_std)
 
         # balances the scale of the two gradient components
         ratio = 0.75

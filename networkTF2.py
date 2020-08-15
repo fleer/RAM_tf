@@ -16,7 +16,7 @@ class AttentionControl(tf.keras.layers.Layer):
         g_size = 256
         self.pixel_scaling = pixel_scaling
         self.depth = depth
-        self.batch_size = batch_size 
+        self.batch_size = batch_size
         self.eval_location_list = []
         self.location_list = []
         self.location_mean_list = []
@@ -30,7 +30,7 @@ class AttentionControl(tf.keras.layers.Layer):
         self.mnist_size = mnist_size
 
         # Initialize weights
-        self.h_location_std_out = tf.keras.layers.Dense(2, 
+        self.h_location_std_out = tf.keras.layers.Dense(2,
                 kernel_initializer = tf.keras.initializers.RandomNormal(mean=0.1))
         self.h_location_out = tf.keras.layers.Dense(2,
                 kernel_initializer = tf.keras.initializers.RandomNormal(mean=0.1))
@@ -79,9 +79,12 @@ class AttentionControl(tf.keras.layers.Layer):
         glimpse = self.Glimpse_Net(loc, inputs)
 
         # Append stuff to lists
-        self.location_mean_list.append(tf.reduce_sum(mean_loc,1))
-        self.location_stddev_list.append(tf.reduce_sum(std_loc,1))
-        self.location_list.append(tf.reduce_sum(sample_loc,1))
+        #self.location_mean_list.append(tf.reduce_sum(mean_loc,1))
+        #self.location_stddev_list.append(tf.reduce_sum(std_loc,1))
+        #self.location_list.append(tf.reduce_sum(sample_loc,1))
+        self.location_mean_list.append(mean_loc)
+        self.location_stddev_list.append(std_loc)
+        self.location_list.append(sample_loc)
         self.glimpses_list.append(glimpse)
         self.eval_location_list.append(loc)
 
@@ -189,7 +192,7 @@ class AttentionControl(tf.keras.layers.Layer):
         x = tf.clip_by_value(x, lower, upper)
         return x
 
-class Baseline(tf.keras.Model): 
+class Baseline(tf.keras.Model):
     def __init__(self, units, batch_size):
         super(Baseline, self).__init__()
         self.batch_size = batch_size
@@ -265,7 +268,7 @@ class RAM(tf.keras.Model):
         R = tf.tile(R, [1, self.glimpses])
 
         # mean reward
-        reward = tf.reduce_mean(R_batch)
+        # reward = tf.reduce_mean(R_batch)
 
         # REINFORCE algorithm for policy network loss
         # -------
@@ -280,23 +283,45 @@ class RAM(tf.keras.Model):
         #       d m          s**2
         #
 
-        loc = tf.transpose(tf.stack(self.attention.location_list),perm=[1,0])
-        mean_loc = tf.transpose(tf.stack(self.attention.location_mean_list),perm=[1,0,])
-        std_loc = tf.transpose(tf.stack(self.attention.location_stddev_list),perm=[1,0,])
-        #TODO: Remove the summation of 2D Location while appending to list and evaluate the characteristic elegibility indiviually for each dimension
+        #Remove the summation of 2D Location while appending to list and evaluate the characteristic elegibility indiviually for each dimension
 
-        print("loc: ", loc)
-        print("Mean loc: ", mean_loc)
-        print("Std loc: ", std_loc)
+        double_baseline = []
+        double_R= []
+        for b in range(len(baseline)):
+            double_baseline.append(baseline[b])
+            double_baseline.append(baseline[b])
+            double_R.append(R[b])
+            double_R.append(R[b])
+        double_baseline = tf.stack(double_baseline)
+        double_R = tf.stack(double_R)
+
+        loc = tf.transpose(tf.reshape(tf.stack(self.attention.location_list),
+                    shape=(self.glimpses,self.batch_size*2)),perm=[1,0,])
+        mean_loc = tf.transpose(tf.reshape(tf.stack(self.attention.location_mean_list),
+                    shape=(self.glimpses,self.batch_size*2)),perm=[1,0,])
+        std_loc = tf.transpose(tf.reshape(tf.stack(self.attention.location_stddev_list),
+                    shape=(self.glimpses,self.batch_size*2)),perm=[1,0,])
 
         Reinforce = tf.reduce_mean((loc -
-            mean_loc)/std_loc**2 * (R - baseline))
+            mean_loc)/std_loc**2 * (double_R - double_baseline))
         Reinforce_std = tf.reduce_mean((((loc -
-            mean_loc)**2)-std_loc**2)/(std_loc**3) *
-            (R-baseline))
+            mean_loc)**2) - std_loc**2)/(std_loc**3) *
+            (double_R - double_baseline))
 
-        print("Reinforce: ", Reinforce)
-        print("Reinforce Std: ", Reinforce_std)
+        #######################################################################
+        # Optimized for mean -> Also need to change appendance lists in attention layer
+
+        #loc = tf.transpose(tf.stack(self.attention.location_list),perm=[1,0])
+        #mean_loc = tf.transpose(tf.stack(self.attention.location_mean_list),perm=[1,0,])
+        #std_loc = tf.transpose(tf.stack(self.attention.location_stddev_list),perm=[1,0,])
+
+
+        #Reinforce = tf.reduce_mean((loc -
+        #    mean_loc)/std_loc**2 * (R - baseline))
+        #Reinforce_std = tf.reduce_mean((((loc -
+        #    mean_loc)**2)-std_loc**2)/(std_loc**3) *
+        #    (R-baseline))
+        #######################################################################
 
         # balances the scale of the two gradient components
         ratio = 0.75

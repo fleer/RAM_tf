@@ -98,7 +98,7 @@ class Experiment():
     #    #   Train
     #    #   ================
         self.train(PARAMETERS.EARLY_STOPPING, PARAMETERS.PATIENCE)
-    #    self.save('./', 'results.json')
+        self.save('./', 'results.json')
 
     def performance_run(self, total_epochs, validation=False):
         """
@@ -266,8 +266,6 @@ class Experiment():
                     l_loss.append(reinforce_loss)
                     s_loss.append(reinforce_std_loss)
                     b_loss.append(baseline_loss)
-                    # print("Cost: ", nnl_loss)
-                    # print("Baseline Loss: ", baseline_loss)
 
                 # Get data for Tensorboard summary
                 eval_location_list, location_list, location_mean_list, location_stddev_list, glimpses_list = self.ram.get_attention_lists()
@@ -292,7 +290,7 @@ class Experiment():
 
                     # Print out Infos
                     logging.info("Epoch={:d}: >>> Test-Accuracy: {:.4f} +/- {:.6f}".format(total_epochs, performance_accuracy, performance_accuracy_std))
-
+                    tf.summary.scalar(name='Accuracy/Performance', data=float(performance_accuracy), step=total_epochs)
             #        # Some visualization
             #        img, zooms = self.ram.get_images(np.vstack([self.test_images[0]]*self.batch_size*self.M))
 
@@ -309,6 +307,7 @@ class Experiment():
                                  "Train-Accuracy: {:.4f} +/- {:.6f}, "
                                  "Validation-Accuracy: {:.4f} +/- {:.6f}".format(total_epochs,
                                      float(num_train_data)/float(time.time()-start_time), np.mean(a_loss), np.mean(l_loss), np.mean(s_loss), np.mean(b_loss), train_accuracy, train_accuracy_std, validation_accuracy, vaidation_accuracy_std))
+                    tf.summary.scalar(name='Accuracy/Validation', data=float(validation_accuracy), step=total_epochs)
 
                     # Early Stopping
                     if early_stopping and early_stopping_accuracy < validation_accuracy:
@@ -322,8 +321,6 @@ class Experiment():
                 tf.summary.scalar(name='Losses/Location: Mean Loss', data=float(np.mean(l_loss)), step=total_epochs)
                 tf.summary.scalar(name='Losses/Location: Stddev Loss', data=float(np.mean(s_loss)), step=total_epochs)
                 tf.summary.scalar(name='Losses/Baseline Loss', data=float(np.mean(b_loss)), step=total_epochs)
-                tf.summary.scalar(name='Accuracy/Performance', data=float(performance_accuracy), step=total_epochs)
-                tf.summary.scalar(name='Accuracy/Validation', data=float(validation_accuracy), step=total_epochs)
                 tf.summary.scalar(name='Accuracy/Train', data=float(train_accuracy), step=total_epochs)
 
                 summary_writer.flush()

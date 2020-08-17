@@ -22,7 +22,6 @@ class AttentionControl(tf.keras.layers.Layer):
         self.location_mean_list = []
         self.location_stddev_list = []
         self.glimpses_list = []
-        self.baseline_list = []
         self.first_glimpse = True
         self.totalSensorBandwidth = totalSensorBandwidth
         self.sensorBandwidth = sensorBandwidth # fixed resolution of sensor
@@ -50,7 +49,6 @@ class AttentionControl(tf.keras.layers.Layer):
         self.location_mean_list = []
         self.location_stddev_list = []
         self.glimpses_list = []
-        self.baseline_list = []
         self.first_glimpse = True
 
     def get_lists(self):
@@ -62,13 +60,13 @@ class AttentionControl(tf.keras.layers.Layer):
             mean_loc = tf.random.uniform(shape=(self.batch_size, 2), minval=-1.,
                     maxval=1., dtype=tf.float32)
             std_loc = tf.random.uniform(shape=(self.batch_size, 2),
-                    minval=-1., maxval=1., dtype=tf.float32)
+                    minval=0., maxval=1., dtype=tf.float32)
             self.first_glimpse = False
         else:
-            mean_loc = self.hard_tanh( self.h_location_out(output))
-            std_loc = tf.nn.sigmoid( self.h_location_std_out(output))
-            #mean_loc = self.hard_tanh( self.h_location_out(tf.stop_gradient(output)))
-            #std_loc = tf.nn.sigmoid( self.h_location_std_out(tf.stop_gradient(output)))
+            # mean_loc = self.hard_tanh( self.h_location_out(output))
+            # std_loc = tf.nn.sigmoid( self.h_location_std_out(output))
+            mean_loc = self.hard_tanh( self.h_location_out(tf.stop_gradient(output)))
+            std_loc = tf.nn.sigmoid( self.h_location_std_out(tf.stop_gradient(output)))
         # Clip location between [-1,1] and adjust its scale
         #sample_loc = self.hard_tanh(mean_loc + tf.cond(self.training,
         #    lambda: tf.random.normal(mean_loc.get_shape(), 0, std_loc), lambda: 0. ))
@@ -199,7 +197,7 @@ class Baseline(tf.keras.Model):
         self.units = units
 
         # baseline
-        self.baseline_layer = tf.keras.layers.Dense(1, activation='relu',
+        self.baseline_layer = tf.keras.layers.Dense(1,
                 kernel_initializer = tf.keras.initializers.RandomNormal(mean=0.1))
 
     def call(self, outputs):
@@ -285,6 +283,7 @@ class RAM(tf.keras.Model):
 
         #Remove the summation of 2D Location while appending to list and evaluate the characteristic elegibility indiviually for each dimension
 
+        baseline = tf.stop_gradient(baseline)
         double_baseline = []
         double_R= []
         for b in range(len(baseline)):
@@ -334,6 +333,5 @@ class RAM(tf.keras.Model):
         #cost = - tf.reduce_mean(J + ratio * tf.reduce_mean(tf.stop_gradient(std_loc))**2* (Reinforce+Reinforce_std), axis=0)
         cost = - tf.reduce_mean(J + ratio * (Reinforce+Reinforce_std), axis=0)
 
-        b_loss = tf.keras.losses.MSE(R, baseline)
 
-        return cost, -Reinforce, -Reinforce_std, b_loss, R
+        return cost, -Reinforce, -Reinforce_std, R

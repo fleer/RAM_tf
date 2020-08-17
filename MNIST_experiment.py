@@ -252,8 +252,10 @@ class Experiment():
                             tape_b.watch(self.baseline.trainable_variables)
                             baseline = self.baseline(outputs)
                             # TODO: Implement baseline
-                            nnl_loss, reinforce_loss, reinforce_std_loss, baseline_loss, R = self.ram.loss(Y, pred, baseline)
-                        # Baseline is trained with MSE
+                            nnl_loss, reinforce_loss, reinforce_std_loss, R = self.ram.loss(Y, pred, baseline)
+                            # Baseline is trained with MSE
+                            baseline_loss = tf.keras.losses.MSE(R, baseline)
+
                         gradients_op_b = tape_b.gradient(baseline_loss, self.baseline.variables)
                     gradients_op_a = tape.gradient(nnl_loss, self.ram.variables)
 

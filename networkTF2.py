@@ -197,7 +197,7 @@ class Baseline(tf.keras.Model):
         self.units = units
 
         # baseline
-        self.baseline_layer = tf.keras.layers.Dense(1,
+        self.baseline_layer = tf.keras.layers.Dense(1, activation='sigmoid',
                 kernel_initializer = tf.keras.initializers.RandomNormal(mean=0.1))
 
     def call(self, outputs):
@@ -218,7 +218,7 @@ class RAM(tf.keras.Model):
         self.units = units
         self.glimpses = num_glimpses
 
-        self.lstm = tf.keras.layers.LSTMCell(units, activation=tf.nn.relu) #, recurrent_initializer='zeros')
+        self.lstm = tf.keras.layers.LSTMCell(units, activation='relu', recurrent_activation=None) #, recurrent_initializer='zeros')
 
         # classification
         self.classification_layer = tf.keras.layers.Dense(10,

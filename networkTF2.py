@@ -198,7 +198,7 @@ class Baseline(tf.keras.Model):
 
         # baseline
         self.baseline_layer = tf.keras.layers.Dense(1,
-                kernel_initializer = tf.keras.initializers.RandomNormal(mean=0.1))
+                kernel_initializer = 'zeros')
 
     def call(self, outputs):
 
@@ -206,9 +206,23 @@ class Baseline(tf.keras.Model):
         b_pred = []
         for o in outputs:
             o = tf.reshape(o, (self.batch_size, self.units))
-            b_pred.append(tf.squeeze(self.baseline_layer(o)))
+            b_pred.append(tf.squeeze(self.hard_sigmoid(self.baseline_layer(o))))
             b = tf.transpose(tf.stack(b_pred),perm=[1,0])
         return b
+
+    def hard_sigmoid(self, x):
+        """
+        Segment-wise linear approximation of sigmoid
+        Faster than standard sigmoid
+        Returns `0.` if `x < 0.`, `1.` if `x > 1`
+        In `0. <= x <= 1.`, returns `x`
+        :param x: A tensor or variable
+        :return: A tensor
+        """
+        lower = tf.convert_to_tensor(0., x.dtype.base_dtype)
+        upper = tf.convert_to_tensor(1., x.dtype.base_dtype)
+        x = tf.clip_by_value(x, lower, upper)
+        return x
 
 class RAM(tf.keras.Model):
     def __init__(self, units, batch_size, pixel_scaling, mnist_size,
@@ -218,7 +232,7 @@ class RAM(tf.keras.Model):
         self.units = units
         self.glimpses = num_glimpses
 
-        self.lstm = tf.keras.layers.LSTMCell(units, activation=tf.nn.relu) #, recurrent_initializer='zeros')
+        self.lstm = tf.keras.layers.LSTMCell(units, activation=tf.nn.relu)
 
         # classification
         self.classification_layer = tf.keras.layers.Dense(10,
@@ -239,7 +253,10 @@ class RAM(tf.keras.Model):
         output = tf.zeros((self.batch_size, self.units))
         hidden = [output, output]
         #self.lstm.reset_states(states=[output, output])
+
         self.attention.reset_lists()
+        self.lstm.reset_recurrent_dropout_mask()
+        self.lstm.reset_dropout_mask()
         for _ in range(self.glimpses):
             glimpse = self.attention(inputs, output)
             output, hidden = self.lstm(glimpse, hidden)
@@ -294,18 +311,29 @@ class RAM(tf.keras.Model):
         double_baseline = tf.stack(double_baseline)
         double_R = tf.stack(double_R)
 
-        loc = tf.transpose(tf.reshape(tf.stack(self.attention.location_list),
-                    shape=(self.glimpses,self.batch_size*2)),perm=[1,0,])
-        mean_loc = tf.transpose(tf.reshape(tf.stack(self.attention.location_mean_list),
-                    shape=(self.glimpses,self.batch_size*2)),perm=[1,0,])
-        std_loc = tf.transpose(tf.reshape(tf.stack(self.attention.location_stddev_list),
-                    shape=(self.glimpses,self.batch_size*2)),perm=[1,0,])
+        loc = tf.reshape(tf.stack(self.attention.location_list),
+                    shape=(self.batch_size*2,self.glimpses))
+        mean_loc = tf.reshape(tf.stack(self.attention.location_mean_list),
+                    shape=(self.batch_size*2,self.glimpses))
+        std_loc = tf.reshape(tf.stack(self.attention.location_stddev_list),
+                    shape=(self.batch_size*2,self.glimpses))
 
-        Reinforce = tf.reduce_mean((loc -
-            mean_loc)/std_loc**2 * (double_R - double_baseline))
-        Reinforce_std = tf.reduce_mean((((loc -
-            mean_loc)**2) - std_loc**2)/(std_loc**3) *
-            (double_R - double_baseline))
+        # print("locList: ", self.attention.location_list)
+        # print("locStack: ", tf.reshape(tf.stack(self.attention.location_list),
+        #             shape=(self.batch_size*2,self.glimpses)))
+
+        # print("R: ", double_R)
+        # print("bL ", double_baseline)
+        Reinforce = (loc - mean_loc)/std_loc**2 * (double_R - double_baseline)
+        Reinforce_std = (((loc - mean_loc)**2) - std_loc**2)/(std_loc**3) * (double_R - double_baseline)
+
+        Reinforce = tf.reshape([tf.keras.backend.sum(tf.reduce_mean(Reinforce,
+            -1)[i:i+2]) for i in range(0, self.batch_size*2, 2)],
+            shape=(self.batch_size,))
+        Reinforce_std = tf.reshape([tf.keras.backend.sum(tf.reduce_mean(Reinforce_std,
+            -1)[i:i+2]) for i in range(0, self.batch_size*2, 2)],
+            shape=(self.batch_size,))
+        # print(Reinforce_std)
 
         #######################################################################
         # Optimized for mean -> Also need to change appendance lists in attention layer

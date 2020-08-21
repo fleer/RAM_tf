@@ -80,11 +80,10 @@ class Experiment():
         self.ram = RAM(256, self.batch_size*self.M, pixel_scaling,
                 mnist_size, DOMAIN_OPTIONS.SENSOR, totalSensorBandwidth,
                 DOMAIN_OPTIONS.DEPTH, DOMAIN_OPTIONS.NGLIMPSES)
-        
+
         # Learning the baseline independently
         self.baseline = Baseline(256, self.batch_size*self.M)
 
-        # TODO: Port to TF2
     #    self.saver = tf.train.Saver(max_to_keep=5)
     #    if PARAMETERS.LOAD_MODEL == True:
     #        print ('Loading Model...')
@@ -94,9 +93,9 @@ class Experiment():
     #    else:
     #        sess.run(tf.global_variables_initializer())
 
-    #    #   ================
-    #    #   Train
-    #    #   ================
+        #   ================
+        #   Train
+        #   ================
         self.train(PARAMETERS.EARLY_STOPPING, PARAMETERS.PATIENCE)
         self.save('./', 'results.json')
 
@@ -254,16 +253,16 @@ class Experiment():
                             # TODO: Implement baseline
                             nnl_loss, reinforce_loss, reinforce_std_loss, R = self.ram.loss(Y, pred, baseline)
                             # Baseline is trained with MSE
-                            baseline_loss = tf.keras.losses.MSE(R, baseline)
+                            baseline_loss = tf.keras.losses.MSE(baseline, R)
 
-                            # print("nnl_loss ", nnl_loss)
-                            # print("reinforce_loss", reinforce_loss)
-                            # print("reinforce_std_loss", reinforce_std_loss)
-                            # print("baseline_loss", baseline_loss)
+#                             print("nnl_loss ", nnl_loss)
+#                             print("reinforce_loss", reinforce_loss)
+#                             print("reinforce_std_loss", reinforce_std_loss)
+#                             print("baseline_loss", baseline_loss)
                         gradients_op_b = tape_b.gradient(baseline_loss, self.baseline.variables)
                     gradients_op_a = tape.gradient(nnl_loss, self.ram.variables)
 
-                    # logging.info("Epoch={:d}: >>> examples/s: {:.2f}, Accumulated-Loss: {:.4f}, Location-Mean Loss: {:.4f}, Location-Stddev Loss: {:.4f}, Baseline-Loss: {:.4f}".format(total_epochs, float(num_train_data)/float(time.time()-start_time), nnl_loss, reinforce_loss, reinforce_std_loss, baseline_loss))
+#                     logging.info("Epoch={:d}: >>> examples/s: {:.2f}, Accumulated-Loss: {:.4f}, Location-Mean Loss: {:.4f}, Location-Stddev Loss: {:.4f}, Baseline-Loss: {:.4f}".format(total_epochs, float(num_train_data)/float(time.time()-start_time), nnl_loss, reinforce_loss, reinforce_std_loss, baseline_loss))
                     trainer.apply_gradients(zip(gradients_op_a, self.ram.variables))
                     trainer_b.apply_gradients(zip(gradients_op_b, self.baseline.variables))
                     max_p_y = tf.argmax(pred, axis=-1)
@@ -273,6 +272,10 @@ class Experiment():
                     l_loss.append(reinforce_loss)
                     s_loss.append(reinforce_std_loss)
                     b_loss.append(baseline_loss)
+                    # print("nnl_loss ", nnl_loss)
+                    # print("reinforce_loss", reinforce_loss)
+                    # print("reinforce_std_loss", reinforce_std_loss)
+                    # print("baseline_loss", baseline_loss)
 
                 # Get data for Tensorboard summary
                 eval_location_list, location_list, location_mean_list, location_stddev_list, glimpses_list = self.ram.get_attention_lists()

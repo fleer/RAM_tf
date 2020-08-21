@@ -3,6 +3,34 @@ import os
 import numpy as np
 import tensorflow as tf
 
+def hard_tanh(x):
+    """
+    Segment-wise linear approximation of tanh
+    Faster than standard tanh
+    Returns `-1.` if `x < -1.`, `1.` if `x > 1`
+    In `-1. <= x <= 1.`, returns `x`
+    :param x: A tensor or variable
+    :return: A tensor
+    """
+    lower = tf.convert_to_tensor(-1., x.dtype.base_dtype)
+    upper = tf.convert_to_tensor(1., x.dtype.base_dtype)
+    x = tf.clip_by_value(x, lower, upper)
+    return x
+
+def hard_sigmoid(x):
+    """
+    Segment-wise linear approximation of sigmoid
+    Faster than standard sigmoid
+    Returns `0.` if `x < 0.`, `1.` if `x > 1`
+    In `0. <= x <= 1.`, returns `x`
+    :param x: A tensor or variable
+    :return: A tensor
+    """
+    lower = tf.convert_to_tensor(0.01, x.dtype.base_dtype)
+    upper = tf.convert_to_tensor(1., x.dtype.base_dtype)
+    x = tf.clip_by_value(x, lower, upper)
+    return x
+
 class AttentionControl(tf.keras.layers.Layer):
     """
     Loop function of recurrent attention network
@@ -30,18 +58,18 @@ class AttentionControl(tf.keras.layers.Layer):
 
         # Initialize weights
         self.h_location_std_out = tf.keras.layers.Dense(2,
-                kernel_initializer = tf.keras.initializers.RandomNormal(mean=0.1))
+                kernel_initializer = tf.keras.initializers.RandomUniform(minval=-0.1, maxval=0.1))
         self.h_location_out = tf.keras.layers.Dense(2,
-                kernel_initializer = tf.keras.initializers.RandomNormal(mean=0.1))
+                kernel_initializer = tf.keras.initializers.RandomUniform(minval=-0.1, maxval=0.1))
         # Glimpse Net
         self.h_glimpse_layer = tf.keras.layers.Dense(hg_size, activation='relu',
-                kernel_initializer = tf.keras.initializers.RandomNormal(mean=0.1))
+                kernel_initializer = tf.keras.initializers.RandomUniform(minval=-0.1, maxval=0.1))
         self.h_location_layer = tf.keras.layers.Dense(hl_size, activation='relu',
-                kernel_initializer = tf.keras.initializers.RandomNormal(mean=0.1))
+                kernel_initializer = tf.keras.initializers.RandomUniform(minval=-0.1, maxval=0.1))
         self.h_glimpse_layer_sum = tf.keras.layers.Dense(g_size,
-                kernel_initializer = tf.keras.initializers.RandomNormal(mean=0.1))
+                kernel_initializer = tf.keras.initializers.RandomUniform(minval=-0.1, maxval=0.1))
         self.h_location_layer_sum = tf.keras.layers.Dense(g_size,
-                kernel_initializer = tf.keras.initializers.RandomNormal(mean=0.1))
+                kernel_initializer = tf.keras.initializers.RandomUniform(minval=-0.1, maxval=0.1))
 
     def reset_lists(self):
         self.eval_location_list = []
@@ -60,26 +88,24 @@ class AttentionControl(tf.keras.layers.Layer):
             mean_loc = tf.random.uniform(shape=(self.batch_size, 2), minval=-1.,
                     maxval=1., dtype=tf.float32)
             std_loc = tf.random.uniform(shape=(self.batch_size, 2),
-                    minval=0., maxval=1., dtype=tf.float32)
+                    minval=0.1, maxval=1., dtype=tf.float32)
             self.first_glimpse = False
         else:
-            # mean_loc = self.hard_tanh( self.h_location_out(output))
-            # std_loc = tf.nn.sigmoid( self.h_location_std_out(output))
-            mean_loc = self.hard_tanh( self.h_location_out(tf.stop_gradient(output)))
-            std_loc = tf.nn.sigmoid( self.h_location_std_out(tf.stop_gradient(output)))
+            mean_loc = hard_tanh( self.h_location_out(tf.stop_gradient(output)))
+            std_loc = hard_sigmoid( self.h_location_std_out(tf.stop_gradient(output)))
         # Clip location between [-1,1] and adjust its scale
-        #sample_loc = self.hard_tanh(mean_loc + tf.cond(self.training,
+        #sample_loc = hard_tanh(mean_loc + tf.cond(self.training,
         #    lambda: tf.random.normal(mean_loc.get_shape(), 0, std_loc), lambda: 0. ))
-        sample_loc = self.hard_tanh(mean_loc +
+        sample_loc = hard_tanh(mean_loc +
                 tf.random.normal(mean_loc.get_shape(), 0.0, std_loc))
         sample_loc = tf.where(tf.math.is_nan(sample_loc), tf.zeros_like(sample_loc), sample_loc)
         loc = sample_loc * self.pixel_scaling
         glimpse = self.Glimpse_Net(loc, inputs)
 
         # Append stuff to lists
-        #self.location_mean_list.append(tf.reduce_sum(mean_loc,1))
-        #self.location_stddev_list.append(tf.reduce_sum(std_loc,1))
-        #self.location_list.append(tf.reduce_sum(sample_loc,1))
+        # self.location_mean_list.append(tf.reduce_sum(mean_loc,1))
+        # self.location_stddev_list.append(tf.reduce_sum(std_loc,1))
+        # self.location_list.append(tf.reduce_sum(sample_loc,1))
         self.location_mean_list.append(mean_loc)
         self.location_stddev_list.append(std_loc)
         self.location_list.append(sample_loc)
@@ -162,33 +188,6 @@ class AttentionControl(tf.keras.layers.Layer):
         zooms = tf.stack(zooms)
         return zooms
 
-    def hard_tanh(self, x):
-        """
-        Segment-wise linear approximation of tanh
-        Faster than standard tanh
-        Returns `-1.` if `x < -1.`, `1.` if `x > 1`
-        In `-1. <= x <= 1.`, returns `x`
-        :param x: A tensor or variable
-        :return: A tensor
-        """
-        lower = tf.convert_to_tensor(-1., x.dtype.base_dtype)
-        upper = tf.convert_to_tensor(1., x.dtype.base_dtype)
-        x = tf.clip_by_value(x, lower, upper)
-        return x
-
-    def hard_sigmoid(self, x):
-        """
-        Segment-wise linear approximation of sigmoid
-        Faster than standard sigmoid
-        Returns `0.` if `x < 0.`, `1.` if `x > 1`
-        In `0. <= x <= 1.`, returns `x`
-        :param x: A tensor or variable
-        :return: A tensor
-        """
-        lower = tf.convert_to_tensor(0., x.dtype.base_dtype)
-        upper = tf.convert_to_tensor(1., x.dtype.base_dtype)
-        x = tf.clip_by_value(x, lower, upper)
-        return x
 
 class Baseline(tf.keras.Model):
     def __init__(self, units, batch_size):
@@ -198,9 +197,7 @@ class Baseline(tf.keras.Model):
 
         self.input_placeholder = tf.keras.layers.InputLayer(input_shape=([batch_size, 256]))
         # baseline
-        self.baseline_layer = tf.keras.layers.Dense(1,
-                kernel_initializer = 'zeros')
-
+        self.baseline_layer = tf.keras.layers.Dense(1, kernel_initializer = tf.keras.initializers.RandomUniform(minval=-0.1, maxval=0.1))
     def call(self, outputs):
 
         # Use mean baseline of all glimpses
@@ -208,9 +205,10 @@ class Baseline(tf.keras.Model):
         for o in outputs:
             o = tf.reshape(tf.stop_gradient(o), (self.batch_size, self.units))
             i = self.input_placeholder(o)
-            b_pred.append(tf.squeeze(self.baseline_layer(o)))
+            b_pred.append(tf.squeeze(self.baseline_layer(i)))
             b = tf.transpose(tf.stack(b_pred),perm=[1,0])
         return b
+
 
 class RAM(tf.keras.Model):
     def __init__(self, units, batch_size, pixel_scaling, mnist_size,
@@ -225,7 +223,7 @@ class RAM(tf.keras.Model):
         # classification
         self.classification_layer = tf.keras.layers.Dense(10,
                 activation=tf.nn.log_softmax,
-                kernel_initializer = tf.keras.initializers.RandomNormal(mean=0.1))
+                kernel_initializer = tf.keras.initializers.RandomUniform(minval=-0.1, maxval=0.1))
         # used for attention
         self.attention = AttentionControl(units, batch_size,
                 pixel_scaling, mnist_size, sensorBandwidth, totalSensorBandwidth, depth)
@@ -306,12 +304,6 @@ class RAM(tf.keras.Model):
         std_loc = tf.reshape(tf.stack(self.attention.location_stddev_list),
                     shape=(self.batch_size*2,self.glimpses))
 
-        # print("locList: ", self.attention.location_list)
-        # print("locStack: ", tf.reshape(tf.stack(self.attention.location_list),
-        #             shape=(self.batch_size*2,self.glimpses)))
-
-        # print("R: ", double_R)
-        # print("bL ", double_baseline)
         Reinforce = (loc - mean_loc)/std_loc**2 * (double_R - double_baseline)
         Reinforce_std = (((loc - mean_loc)**2) - std_loc**2)/(std_loc**3) * (double_R - double_baseline)
 
@@ -321,21 +313,27 @@ class RAM(tf.keras.Model):
         Reinforce_std = tf.reshape([tf.keras.backend.mean(tf.reduce_sum(Reinforce_std,
             -1)[i:i+2]) for i in range(0, self.batch_size*2, 2)],
             shape=(self.batch_size,))
+        # print("locList: ", self.attention.location_list)
+        # print("locStack: ", tf.reshape(tf.stack(self.attention.location_list),
+        #             shape=(self.batch_size*2,self.glimpses)))
+
+        # print("R: ", double_R)
+        # print("bL ", double_baseline)
         # print(Reinforce_std)
 
         #######################################################################
         # Optimized for mean -> Also need to change appendance lists in attention layer
 
-        #loc = tf.transpose(tf.stack(self.attention.location_list),perm=[1,0])
-        #mean_loc = tf.transpose(tf.stack(self.attention.location_mean_list),perm=[1,0,])
-        #std_loc = tf.transpose(tf.stack(self.attention.location_stddev_list),perm=[1,0,])
+        # loc = tf.transpose(tf.stack(self.attention.location_list),perm=[1,0])
+        # mean_loc = tf.transpose(tf.stack(self.attention.location_mean_list),perm=[1,0,])
+        # std_loc = tf.transpose(tf.stack(self.attention.location_stddev_list),perm=[1,0,])
 
 
-        #Reinforce = tf.reduce_mean((loc -
-        #    mean_loc)/std_loc**2 * (R - baseline))
-        #Reinforce_std = tf.reduce_mean((((loc -
-        #    mean_loc)**2)-std_loc**2)/(std_loc**3) *
-        #    (R-baseline))
+        # Reinforce = tf.reduce_mean((loc -
+        #     mean_loc)/std_loc**2 * (R - baseline))
+        # Reinforce_std = tf.reduce_mean((((loc -
+        #     mean_loc)**2)-std_loc**2)/(std_loc**3) *
+        #     (R - baseline))
         #######################################################################
 
         # balances the scale of the two gradient components

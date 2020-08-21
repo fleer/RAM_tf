@@ -196,6 +196,7 @@ class Baseline(tf.keras.Model):
         self.batch_size = batch_size
         self.units = units
 
+        self.input_placeholder = tf.keras.layers.InputLayer(input_shape=([batch_size, 256]))
         # baseline
         self.baseline_layer = tf.keras.layers.Dense(1,
                 kernel_initializer = 'zeros')
@@ -205,7 +206,8 @@ class Baseline(tf.keras.Model):
         # Use mean baseline of all glimpses
         b_pred = []
         for o in outputs:
-            o = tf.reshape(o, (self.batch_size, self.units))
+            o = tf.reshape(tf.stop_gradient(o), (self.batch_size, self.units))
+            i = self.input_placeholder(o)
             b_pred.append(tf.squeeze(self.baseline_layer(o)))
             b = tf.transpose(tf.stack(b_pred),perm=[1,0])
         return b
@@ -217,8 +219,8 @@ class RAM(tf.keras.Model):
         self.batch_size = batch_size
         self.units = units
         self.glimpses = num_glimpses
-
-        self.lstm = tf.keras.layers.LSTMCell(units, activation=tf.nn.relu)
+        self.inputs_placeholder = tf.keras.layers.InputLayer(input_shape=([batch_size, mnist_size, mnist_size, 1]))
+        self.lstm = tf.keras.layers.LSTMCell(units, activation='relu')
 
         # classification
         self.classification_layer = tf.keras.layers.Dense(10,
@@ -242,8 +244,9 @@ class RAM(tf.keras.Model):
         self.attention.reset_lists()
         self.lstm.reset_recurrent_dropout_mask()
         self.lstm.reset_dropout_mask()
+        input_layer = self.inputs_placeholder(inputs)
         for _ in range(self.glimpses):
-            glimpse = self.attention(inputs, output)
+            glimpse = self.attention(input_layer, output)
             output, hidden = self.lstm(glimpse, hidden)
             outputs.append(output)
         # look at ONLY THE END of the sequence to predict label
@@ -260,7 +263,7 @@ class RAM(tf.keras.Model):
         """
 
         max_p_y = tf.argmax(action_out, axis=-1)
-        actions_onehot = tf.one_hot(max_p_y, 10)
+        actions_onehot = tf.one_hot(correct_y, 10)
         # reward per example
         R_batch = tf.cast(tf.equal(max_p_y, correct_y), tf.float32)
         R = tf.reshape(R_batch, (self.batch_size, 1))
@@ -312,10 +315,10 @@ class RAM(tf.keras.Model):
         Reinforce = (loc - mean_loc)/std_loc**2 * (double_R - double_baseline)
         Reinforce_std = (((loc - mean_loc)**2) - std_loc**2)/(std_loc**3) * (double_R - double_baseline)
 
-        Reinforce = tf.reshape([tf.keras.backend.sum(tf.reduce_mean(Reinforce,
+        Reinforce = tf.reshape([tf.keras.backend.mean(tf.reduce_sum(Reinforce,
             -1)[i:i+2]) for i in range(0, self.batch_size*2, 2)],
             shape=(self.batch_size,))
-        Reinforce_std = tf.reshape([tf.keras.backend.sum(tf.reduce_mean(Reinforce_std,
+        Reinforce_std = tf.reshape([tf.keras.backend.mean(tf.reduce_sum(Reinforce_std,
             -1)[i:i+2]) for i in range(0, self.batch_size*2, 2)],
             shape=(self.batch_size,))
         # print(Reinforce_std)

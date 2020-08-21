@@ -225,10 +225,10 @@ class Experiment():
 
         with summary_writer.as_default():
             # Initial Performance Check
-            performance_accuracy, performance_accuracy_std = self.performance_run(total_epochs)
-            logging.info("Epoch={:d}: >>> Test-Accuracy: {:.4f} "
-                           "+/- {:.6f}".format(total_epochs, performance_accuracy, performance_accuracy_std))
-            tf.summary.scalar("Accuracy", performance_accuracy, step=total_epochs)
+            # performance_accuracy, performance_accuracy_std = self.performance_run(total_epochs)
+            # logging.info("Epoch={:d}: >>> Test-Accuracy: {:.4f} "
+            #                "+/- {:.6f}".format(total_epochs, performance_accuracy, performance_accuracy_std))
+            # tf.summary.scalar("Accuracy", performance_accuracy, step=total_epochs)
             summary_writer.flush()
             patience_steps = 0
             early_stopping_accuracy = 0.
@@ -256,9 +256,14 @@ class Experiment():
                             # Baseline is trained with MSE
                             baseline_loss = tf.keras.losses.MSE(R, baseline)
 
+                            # print("nnl_loss ", nnl_loss)
+                            # print("reinforce_loss", reinforce_loss)
+                            # print("reinforce_std_loss", reinforce_std_loss)
+                            # print("baseline_loss", baseline_loss)
                         gradients_op_b = tape_b.gradient(baseline_loss, self.baseline.variables)
                     gradients_op_a = tape.gradient(nnl_loss, self.ram.variables)
 
+                    # logging.info("Epoch={:d}: >>> examples/s: {:.2f}, Accumulated-Loss: {:.4f}, Location-Mean Loss: {:.4f}, Location-Stddev Loss: {:.4f}, Baseline-Loss: {:.4f}".format(total_epochs, float(num_train_data)/float(time.time()-start_time), nnl_loss, reinforce_loss, reinforce_std_loss, baseline_loss))
                     trainer.apply_gradients(zip(gradients_op_a, self.ram.variables))
                     trainer_b.apply_gradients(zip(gradients_op_b, self.baseline.variables))
                     max_p_y = tf.argmax(pred, axis=-1)

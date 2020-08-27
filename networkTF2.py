@@ -77,7 +77,7 @@ class AttentionControl(tf.keras.layers.Layer):
         self.location_mean_list = []
         self.location_stddev_list = []
         self.glimpses_list = []
-        self.first_glimpse = True
+        self.first_glimpse = False
 
     def get_lists(self):
         return self.eval_location_list, self.location_list, self.location_mean_list, self.location_stddev_list, self.glimpses_list
@@ -92,7 +92,7 @@ class AttentionControl(tf.keras.layers.Layer):
             self.first_glimpse = False
         else:
             mean_loc = hard_tanh( self.h_location_out(tf.stop_gradient(output)))
-            std_loc = hard_sigmoid( self.h_location_std_out(tf.stop_gradient(output)))
+            std_loc = tf.nn.sigmoid( self.h_location_std_out(tf.stop_gradient(output)))
         # Clip location between [-1,1] and adjust its scale
         #sample_loc = hard_tanh(mean_loc + tf.cond(self.training,
         #    lambda: tf.random.normal(mean_loc.get_shape(), 0, std_loc), lambda: 0. ))
@@ -103,12 +103,12 @@ class AttentionControl(tf.keras.layers.Layer):
         glimpse = self.Glimpse_Net(loc, inputs)
 
         # Append stuff to lists
-        # self.location_mean_list.append(tf.reduce_sum(mean_loc,1))
-        # self.location_stddev_list.append(tf.reduce_sum(std_loc,1))
-        # self.location_list.append(tf.reduce_sum(sample_loc,1))
-        self.location_mean_list.append(mean_loc)
-        self.location_stddev_list.append(std_loc)
-        self.location_list.append(sample_loc)
+        self.location_mean_list.append(tf.reduce_sum(mean_loc,1))
+        self.location_stddev_list.append(tf.reduce_sum(std_loc,1))
+        self.location_list.append(tf.reduce_sum(sample_loc,1))
+        # self.location_mean_list.append(mean_loc)
+        # self.location_stddev_list.append(std_loc)
+        # self.location_list.append(sample_loc)
         self.glimpses_list.append(glimpse)
         self.eval_location_list.append(loc)
 
@@ -267,6 +267,7 @@ class RAM(tf.keras.Model):
         R = tf.reshape(R_batch, (self.batch_size, 1))
         R = tf.stop_gradient(R)
         R = tf.tile(R, [1, self.glimpses])
+        baseline = tf.stop_gradient(baseline)
 
         # mean reward
         # reward = tf.reduce_mean(R_batch)
@@ -286,33 +287,32 @@ class RAM(tf.keras.Model):
 
         #Remove the summation of 2D Location while appending to list and evaluate the characteristic elegibility indiviually for each dimension
 
-        baseline = tf.stop_gradient(baseline)
-        double_baseline = []
-        double_R= []
-        for b in range(len(baseline)):
-            double_baseline.append(baseline[b])
-            double_baseline.append(baseline[b])
-            double_R.append(R[b])
-            double_R.append(R[b])
-        double_baseline = tf.stack(double_baseline)
-        double_R = tf.stack(double_R)
+        # double_baseline = []
+        # double_R= []
+        # for b in range(len(baseline)):
+        #     double_baseline.append(baseline[b])
+        #     double_baseline.append(baseline[b])
+        #     double_R.append(R[b])
+        #     double_R.append(R[b])
+        # double_baseline = tf.stack(double_baseline)
+        # double_R = tf.stack(double_R)
 
-        loc = tf.reshape(tf.stack(self.attention.location_list),
-                    shape=(self.batch_size*2,self.glimpses))
-        mean_loc = tf.reshape(tf.stack(self.attention.location_mean_list),
-                    shape=(self.batch_size*2,self.glimpses))
-        std_loc = tf.reshape(tf.stack(self.attention.location_stddev_list),
-                    shape=(self.batch_size*2,self.glimpses))
+        # loc = tf.reshape(tf.stack(self.attention.location_list),
+        #             shape=(self.batch_size*2,self.glimpses))
+        # mean_loc = tf.reshape(tf.stack(self.attention.location_mean_list),
+        #             shape=(self.batch_size*2,self.glimpses))
+        # std_loc = tf.reshape(tf.stack(self.attention.location_stddev_list),
+        #             shape=(self.batch_size*2,self.glimpses))
 
-        Reinforce = (loc - mean_loc)/std_loc**2 * (double_R - double_baseline)
-        Reinforce_std = (((loc - mean_loc)**2) - std_loc**2)/(std_loc**3) * (double_R - double_baseline)
+        # Reinforce = (loc - mean_loc)/std_loc**2 * (double_R - double_baseline)
+        # Reinforce_std = (((loc - mean_loc)**2) - std_loc**2)/(std_loc**3) * (double_R - double_baseline)
 
-        Reinforce = tf.reshape([tf.keras.backend.mean(tf.reduce_sum(Reinforce,
-            -1)[i:i+2]) for i in range(0, self.batch_size*2, 2)],
-            shape=(self.batch_size,))
-        Reinforce_std = tf.reshape([tf.keras.backend.mean(tf.reduce_sum(Reinforce_std,
-            -1)[i:i+2]) for i in range(0, self.batch_size*2, 2)],
-            shape=(self.batch_size,))
+        # Reinforce = tf.reshape([tf.keras.backend.mean(tf.reduce_sum(Reinforce,
+        #     -1)[i:i+2]) for i in range(0, self.batch_size*2, 2)],
+        #     shape=(self.batch_size,))
+        # Reinforce_std = tf.reshape([tf.keras.backend.mean(tf.reduce_sum(Reinforce_std,
+        #     -1)[i:i+2]) for i in range(0, self.batch_size*2, 2)],
+        #     shape=(self.batch_size,))
         # print("locList: ", self.attention.location_list)
         # print("locStack: ", tf.reshape(tf.stack(self.attention.location_list),
         #             shape=(self.batch_size*2,self.glimpses)))
@@ -324,16 +324,16 @@ class RAM(tf.keras.Model):
         #######################################################################
         # Optimized for mean -> Also need to change appendance lists in attention layer
 
-        # loc = tf.transpose(tf.stack(self.attention.location_list),perm=[1,0])
-        # mean_loc = tf.transpose(tf.stack(self.attention.location_mean_list),perm=[1,0,])
-        # std_loc = tf.transpose(tf.stack(self.attention.location_stddev_list),perm=[1,0,])
+        loc = tf.transpose(tf.stack(self.attention.location_list),perm=[1,0])
+        mean_loc = tf.transpose(tf.stack(self.attention.location_mean_list),perm=[1,0,])
+        std_loc = tf.transpose(tf.stack(self.attention.location_stddev_list),perm=[1,0,])
 
 
-        # Reinforce = tf.reduce_mean((loc -
-        #     mean_loc)/std_loc**2 * (R - baseline))
-        # Reinforce_std = tf.reduce_mean((((loc -
-        #     mean_loc)**2)-std_loc**2)/(std_loc**3) *
-        #     (R - baseline))
+        Reinforce = tf.reduce_mean((loc -
+            mean_loc)/std_loc**2 * (R - baseline))
+        Reinforce_std = tf.reduce_mean((((loc -
+            mean_loc)**2)-std_loc**2)/(std_loc**3) *
+            (R - baseline))
         #######################################################################
 
         # balances the scale of the two gradient components

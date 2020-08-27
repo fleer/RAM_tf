@@ -253,12 +253,12 @@ class Experiment():
                             # TODO: Implement baseline
                             nnl_loss, reinforce_loss, reinforce_std_loss, R = self.ram.loss(Y, pred, baseline)
                             # Baseline is trained with MSE
-                            baseline_loss = tf.keras.losses.MSE(baseline, R)
+                            baseline_loss = tf.keras.losses.mean_squared_error(R, baseline)
 
-#                             print("nnl_loss ", nnl_loss)
-#                             print("reinforce_loss", reinforce_loss)
-#                             print("reinforce_std_loss", reinforce_std_loss)
-#                             print("baseline_loss", baseline_loss)
+                            # print("nnl_loss ", nnl_loss)
+                            # print("reinforce_loss", reinforce_loss)
+                            # print("reinforce_std_loss", reinforce_std_loss)
+                            # print("baseline_loss", baseline_loss)
                         gradients_op_b = tape_b.gradient(baseline_loss, self.baseline.variables)
                     gradients_op_a = tape.gradient(nnl_loss, self.ram.variables)
 

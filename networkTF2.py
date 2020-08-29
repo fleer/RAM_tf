@@ -240,8 +240,8 @@ class RAM(tf.keras.Model):
         hidden = [output, output]
         #self.lstm.reset_states(states=[output, output])
         self.attention.reset_lists()
-        self.lstm.reset_recurrent_dropout_mask()
-        self.lstm.reset_dropout_mask()
+        #self.lstm.reset_recurrent_dropout_mask()
+        #self.lstm.reset_dropout_mask()
         input_layer = self.inputs_placeholder(inputs)
         for _ in range(self.glimpses):
             glimpse = self.attention(input_layer, output)
@@ -328,12 +328,11 @@ class RAM(tf.keras.Model):
         mean_loc = tf.transpose(tf.stack(self.attention.location_mean_list),perm=[1,0,])
         std_loc = tf.transpose(tf.stack(self.attention.location_stddev_list),perm=[1,0,])
 
-
-        Reinforce = tf.reduce_mean((loc -
-            mean_loc)/std_loc**2 * (R - baseline))
+        Reinforce = tf.reduce_mean((loc - mean_loc)/tf.stop_gradient(std_loc)**2
+                * (R-baseline))
         Reinforce_std = tf.reduce_mean((((loc -
-            mean_loc)**2)-std_loc**2)/(std_loc**3) *
-            (R - baseline))
+            tf.stop_gradient(mean_loc))**2)-std_loc**2)/(std_loc**3) *
+            (R-baseline))
         #######################################################################
 
         # balances the scale of the two gradient components

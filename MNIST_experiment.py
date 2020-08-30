@@ -246,10 +246,10 @@ class Experiment():
                 while total_epochs == self.mnist.dataset.train.epochs_completed:
                     X, Y, _= self.mnist.get_batch(self.batch_size, data_type="train")
                     with tf.GradientTape() as tape:
-                        tape.watch(self.ram.trainable_variables)
+                        tape.watch(self.ram.trainable_weights)
                         glimpse, pred, outputs = self.ram(X)
                         with tf.GradientTape() as tape_b:
-                            tape_b.watch(self.baseline.trainable_variables)
+                            tape_b.watch(self.baseline.trainable_weights)
                             baseline = self.baseline(outputs)
                             # TODO: Implement baseline
                             nnl_loss, reinforce_loss, reinforce_std_loss, R = self.ram.loss(Y, pred, baseline)
@@ -260,10 +260,10 @@ class Experiment():
                             # print("reinforce_loss", reinforce_loss)
                             # print("reinforce_std_loss", reinforce_std_loss)
                             # print("baseline_loss", baseline_loss)
-                        gradients_op_b = tape_b.gradient(baseline_loss, self.baseline.trainable_variables)
-                    gradients_op_a = tape.gradient(nnl_loss, self.ram.trainable_variables)
-                    trainer.apply_gradients(zip(gradients_op_a, self.ram.trainable_variables))
-                    trainer_b.apply_gradients(zip(gradients_op_b, self.baseline.trainable_variables))
+                        gradients_op_b = tape_b.gradient(baseline_loss, self.baseline.trainable_weights)
+                    gradients_op_a = tape.gradient(nnl_loss, self.ram.trainable_weights)
+                    trainer.apply_gradients(zip(gradients_op_a, self.ram.trainable_weights))
+                    trainer_b.apply_gradients(zip(gradients_op_b, self.baseline.trainable_weights))
                     max_p_y = tf.argmax(pred, axis=-1)
                     train_accuracy += np.sum(np.equal(max_p_y, Y).astype(np.float32), axis=-1)
                     train_accuracy_sqrt+= np.sum((np.equal(max_p_y, Y).astype(np.float32))**2, axis=-1)
@@ -275,8 +275,8 @@ class Experiment():
                     # print("reinforce_loss", reinforce_loss)
                     # print("reinforce_std_loss", reinforce_std_loss)
                     # print("baseline_loss", baseline_loss)
-                    step += 1
-                    self.learning_rate = learning_rate_decay(step, self.learning_rate)
+                    # step += 1
+                    # self.learning_rate = learning_rate_decay(step, self.learning_rate)
                     # print(gradients_op_a)
                     # print(gradients_op_b)
                     # print('learning rate:', self.learning_rate)
@@ -292,6 +292,7 @@ class Experiment():
                 #     take_first_zoom.append(self.glimpses_list[gl][0])
                 # self.summary_zooms = tf.summary.image("Zooms", tf.reshape(take_first_zoom, (self.glimpses, self.sensorBandwidth, self.sensorBandwidth, 1)), max_outputs=self.glimpses)
 
+                self.learning_rate = learning_rate_decay(total_epochs, self.learning_rate)
                 total_epochs += 1
 
 
@@ -300,7 +301,7 @@ class Experiment():
                 train_accuracy_std = np.sqrt(((train_accuracy_sqrt/(num_train_data*self.M)) - train_accuracy**2)/(num_train_data*self.M))
 
                 # self.visualize(X[:self.batch_size],Y[:self.batch_size], Y[:self.batch_size])
-                logging.info("Epoch={:d}: >>> Train-Accuracy: {:.4f} +/- {:.6f}".format(total_epochs, train_accuracy, train_accuracy_std))
+                logging.info("Epoch={:d}: >>> Train-Accuracy: {:.4f} +/- {:.6f}, Learning Rate: {:.6f}".format(total_epochs, train_accuracy, train_accuracy_std, self.learning_rate))
                 if total_epochs % 10 == 0:
                     # Test Accuracy
                     performance_accuracy, performance_accuracy_std = self.performance_run(total_epochs)
@@ -321,9 +322,9 @@ class Experiment():
 
                     # Print out Infos
                     logging.info("Epoch={:d}: >>> examples/s: {:.2f}, Accumulated-Loss: {:.4f}, Location-Mean Loss: {:.4f}, Location-Stddev Loss: {:.4f}, Baseline-Loss: {:.4f}, "
-                            "Learning Rate: {:.6f},Train-Accuracy: {:.4f} +/- {:.6f}, "
+                            "Train-Accuracy: {:.4f} +/- {:.6f}, "
                                  "Validation-Accuracy: {:.4f} +/- {:.6f}".format(total_epochs,
-                                     float(num_train_data)/float(time.time()-start_time), np.mean(a_loss), np.mean(l_loss), np.mean(s_loss), np.mean(b_loss), self.learning_rate, train_accuracy, train_accuracy_std, validation_accuracy, vaidation_accuracy_std))
+                                     float(num_train_data)/float(time.time()-start_time), np.mean(a_loss), np.mean(l_loss), np.mean(s_loss), np.mean(b_loss), train_accuracy, train_accuracy_std, validation_accuracy, vaidation_accuracy_std))
                     tf.summary.scalar(name='Accuracy/Validation', data=float(validation_accuracy), step=total_epochs)
 
                     # Early Stopping

@@ -98,8 +98,8 @@ class AttentionControl(tf.keras.layers.Layer):
         #    lambda: tf.random.normal(mean_loc.get_shape(), 0, std_loc), lambda: 0. ))
         sample_loc = hard_tanh(mean_loc +
                 tf.random.normal(mean_loc.get_shape(), 0.0, std_loc))
-        if (tf.reduce_any(tf.math.is_nan(sample_loc))):
-            print("Loc is nan")
+        # if (tf.reduce_any(tf.math.is_nan(sample_loc))):
+        #     print("Loc is nan")
         sample_loc = tf.where(tf.math.is_nan(sample_loc), tf.zeros_like(sample_loc), sample_loc)
         loc = sample_loc * self.pixel_scaling
         glimpse = self.Glimpse_Net(loc, inputs)
@@ -263,7 +263,7 @@ class RAM(tf.keras.Model):
         """
 
         max_p_y = tf.argmax(action_out, axis=-1)
-        actions_onehot = tf.one_hot(correct_y, 10)
+        actions_onehot = tf.one_hot(indices=correct_y, depth=10, on_value=1., off_value=0.)
         # reward per example
         R_batch = tf.cast(tf.equal(max_p_y, correct_y), tf.float32)
         R = tf.reshape(R_batch, (self.batch_size, 1))

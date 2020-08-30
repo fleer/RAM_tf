@@ -94,7 +94,8 @@ class PARAMETERS:
     # Momentum
     MOMENTUM = 0.9
     # Learning rate alpha
-    LEARNING_RATE = 0.01
+    # LEARNING_RATE = 0.005
+    LEARNING_RATE = 0.005
     # Decay type for learning rate
     #   - static
     #   - linear
@@ -109,7 +110,7 @@ class PARAMETERS:
     # with integer dvision for "exponential_staircase"
     LEARNING_RATE_DECAY_STEPS = 1
     # Only has an effect for "exponential" decay
-    LEARNING_RATE_DECAY = 0.97
+    LEARNING_RATE_DECAY = 0.9
     # Minimal Learning Rate
     MIN_LEARNING_RATE = 0.0001
 

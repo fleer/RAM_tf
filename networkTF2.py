@@ -77,7 +77,7 @@ class AttentionControl(tf.keras.layers.Layer):
         self.location_mean_list = []
         self.location_stddev_list = []
         self.glimpses_list = []
-        self.first_glimpse = False
+        self.first_glimpse = True
 
     def get_lists(self):
         return self.eval_location_list, self.location_list, self.location_mean_list, self.location_stddev_list, self.glimpses_list
@@ -98,6 +98,8 @@ class AttentionControl(tf.keras.layers.Layer):
         #    lambda: tf.random.normal(mean_loc.get_shape(), 0, std_loc), lambda: 0. ))
         sample_loc = hard_tanh(mean_loc +
                 tf.random.normal(mean_loc.get_shape(), 0.0, std_loc))
+        if (tf.reduce_any(tf.math.is_nan(sample_loc))):
+            print("Loc is nan")
         sample_loc = tf.where(tf.math.is_nan(sample_loc), tf.zeros_like(sample_loc), sample_loc)
         loc = sample_loc * self.pixel_scaling
         glimpse = self.Glimpse_Net(loc, inputs)
@@ -336,7 +338,7 @@ class RAM(tf.keras.Model):
         #######################################################################
 
         # balances the scale of the two gradient components
-        ratio = 0.75
+        ratio = 1.
 
         # Action Loss
         J = tf.reduce_sum(action_out * actions_onehot,axis=1)

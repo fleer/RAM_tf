@@ -171,48 +171,48 @@ class Experiment():
         of the learning rate
         :return: New learning rate
         """
-        #if self.lr_decay_type == "linear":
-        #    # Linear Learning Rate Decay
-        #    def learning_rate_decay(epoch, lr):
-        #        new_lr = max(self.min_lr, self.lr - self.lr_decay_rate)
-        #        return new_lr
-        #elif self.lr_decay_type == "exponential":
-        #    # Exponential Learning Rate Decay
-        #    def learning_rate_decay(epoch, lr):
-        #        new_lr = max(self.min_lr, self.max_lr * (self.lr_decay_rate **
-        #            epoch/self.lr_decay_steps))
-        #        return new_lr
-        #elif self.lr_decay_type == "exponential_staircase":
-        #    # Exponential Learning Rate Decay
-        #    def learning_rate_decay(epoch, lr):
-        #        new_lr = max(self.min_lr, self.max_lr * (self.lr_decay_rate **
-        #            (epoch // self.lr_decay_steps)))
-        #        return new_lr
-        #else:
-        #    print("Wrong type of learning rate: " + self.lr_decay_type)
-        #    def learning_rate_decay(self, epoch, lr):
-        #        return new_lr
+        if self.lr_decay_type == "linear":
+            # Linear Learning Rate Decay
+            def learning_rate_decay(epoch, lr):
+                new_lr = max(self.min_lr, self.lr - self.lr_decay_rate)
+                return new_lr
+        elif self.lr_decay_type == "exponential":
+            # Exponential Learning Rate Decay
+            def learning_rate_decay(epoch, lr):
+                new_lr = max(self.min_lr, self.max_lr * (self.lr_decay_rate **
+                    epoch/self.lr_decay_steps))
+                return new_lr
+        elif self.lr_decay_type == "exponential_staircase":
+            # Exponential Learning Rate Decay
+            def learning_rate_decay(epoch, lr):
+                new_lr = max(self.min_lr, self.max_lr * (self.lr_decay_rate **
+                    (epoch // self.lr_decay_steps)))
+                return new_lr
+        else:
+            print("Wrong type of learning rate: " + self.lr_decay_type)
+            def learning_rate_decay(self, epoch, lr):
+                return new_lr
 
-        lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(
-            self.learning_rate,
-            decay_steps=self.lr_decay_steps,
-            decay_rate=self.lr_decay_rate,
-            staircase=False)
+        # lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(
+        #     self.learning_rate,
+        #     decay_steps=self.lr_decay_steps,
+        #     decay_rate=self.lr_decay_rate,
+        #     staircase=False)
         #callback = tf.keras.callbacks.LearningRateScheduler(learning_rate_decay)
         #TODO: Wirte own lr Decay class
         # Choose Optimizer
         if self.optimizer == "rmsprop":
-            trainer = tf.keras.optimizers.RMSprop(learning_rate=lr_schedule)
-            trainer_b = tf.keras.optimizers.RMSprop(learning_rate=lr_schedule)
+            trainer = tf.keras.optimizers.RMSprop()
+            trainer_b = tf.keras.optimizers.RMSprop()
         elif self.optimizer == "adam":
-            trainer = tf.keras.optimizers.Adam(learning_rate=lr_schedule)
-            trainer_b = tf.keras.optimizers.Adam(learning_rate=lr_schedule)
+            trainer = tf.keras.optimizers.Adam()
+            trainer_b = tf.keras.optimizers.Adam()
         elif self.optimizer == "adadelta":
-            trainer = tf.keras.optimizers.Adadelta(learning_rate=lr_schedule)
-            trainer_b = tf.keras.optimizers.Adadelta(learning_rate=lr_schedule)
+            trainer = tf.keras.optimizers.Adadelta()
+            trainer_b = tf.keras.optimizers.Adadelta()
         elif self.optimizer == 'sgd':
-            trainer = tf.keras.optimizers.SGD(learning_rate=lr_schedule, momentum=self.momentum, nesterov=True)
-            trainer_b = tf.keras.optimizers.SGD(learning_rate=lr_schedule, momentum=self.momentum, nesterov=True)
+            trainer = tf.keras.optimizers.SGD(momentum=self.momentum, nesterov=True)
+            trainer_b = tf.keras.optimizers.SGD(momentum=self.momentum, nesterov=True)
         else:
             raise ValueError("unrecognized update: {}".format(self.optimizer))
 
@@ -233,6 +233,7 @@ class Experiment():
             early_stopping_accuracy = 0.
             visualize_classification = True
             logging.info("Start Training")
+            step = 0
             for _ in range(self.max_epochs):
                 start_time = time.time()
                 train_accuracy = 0
@@ -259,12 +260,10 @@ class Experiment():
                             # print("reinforce_loss", reinforce_loss)
                             # print("reinforce_std_loss", reinforce_std_loss)
                             # print("baseline_loss", baseline_loss)
-                        gradients_op_b = tape_b.gradient(baseline_loss, self.baseline.variables)
-                    gradients_op_a = tape.gradient(nnl_loss, self.ram.variables)
-
-#                     logging.info("Epoch={:d}: >>> examples/s: {:.2f}, Accumulated-Loss: {:.4f}, Location-Mean Loss: {:.4f}, Location-Stddev Loss: {:.4f}, Baseline-Loss: {:.4f}".format(total_epochs, float(num_train_data)/float(time.time()-start_time), nnl_loss, reinforce_loss, reinforce_std_loss, baseline_loss))
-                    trainer.apply_gradients(zip(gradients_op_a, self.ram.variables))
-                    trainer_b.apply_gradients(zip(gradients_op_b, self.baseline.variables))
+                        gradients_op_b = tape_b.gradient(baseline_loss, self.baseline.trainable_variables)
+                    gradients_op_a = tape.gradient(nnl_loss, self.ram.trainable_variables)
+                    trainer.apply_gradients(zip(gradients_op_a, self.ram.trainable_variables))
+                    trainer_b.apply_gradients(zip(gradients_op_b, self.baseline.trainable_variables))
                     max_p_y = tf.argmax(pred, axis=-1)
                     train_accuracy += np.sum(np.equal(max_p_y, Y).astype(np.float32), axis=-1)
                     train_accuracy_sqrt+= np.sum((np.equal(max_p_y, Y).astype(np.float32))**2, axis=-1)
@@ -276,6 +275,14 @@ class Experiment():
                     # print("reinforce_loss", reinforce_loss)
                     # print("reinforce_std_loss", reinforce_std_loss)
                     # print("baseline_loss", baseline_loss)
+                    step += 1
+                    self.learning_rate = learning_rate_decay(step, self.learning_rate)
+                    # print(gradients_op_a)
+                    # print(gradients_op_b)
+                    # print('learning rate:', self.learning_rate)
+                    trainer.learning_rate = self.learning_rate
+                    trainer_b.learning_rate = self.learning_rate
+
 
                 # Get data for Tensorboard summary
                 eval_location_list, location_list, location_mean_list, location_stddev_list, glimpses_list = self.ram.get_attention_lists()
@@ -314,9 +321,9 @@ class Experiment():
 
                     # Print out Infos
                     logging.info("Epoch={:d}: >>> examples/s: {:.2f}, Accumulated-Loss: {:.4f}, Location-Mean Loss: {:.4f}, Location-Stddev Loss: {:.4f}, Baseline-Loss: {:.4f}, "
-                                 "Train-Accuracy: {:.4f} +/- {:.6f}, "
+                            "Learning Rate: {:.6f},Train-Accuracy: {:.4f} +/- {:.6f}, "
                                  "Validation-Accuracy: {:.4f} +/- {:.6f}".format(total_epochs,
-                                     float(num_train_data)/float(time.time()-start_time), np.mean(a_loss), np.mean(l_loss), np.mean(s_loss), np.mean(b_loss), train_accuracy, train_accuracy_std, validation_accuracy, vaidation_accuracy_std))
+                                     float(num_train_data)/float(time.time()-start_time), np.mean(a_loss), np.mean(l_loss), np.mean(s_loss), np.mean(b_loss), self.learning_rate, train_accuracy, train_accuracy_std, validation_accuracy, vaidation_accuracy_std))
                     tf.summary.scalar(name='Accuracy/Validation', data=float(validation_accuracy), step=total_epochs)
 
                     # Early Stopping

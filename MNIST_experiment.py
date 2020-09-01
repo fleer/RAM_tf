@@ -10,6 +10,7 @@ import json
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 import pdb
+from sys import exit
 
 class Experiment():
     """
@@ -256,6 +257,9 @@ class Experiment():
                             # Baseline is trained with MSE
                             baseline_loss = tf.keras.losses.mean_squared_error(R, baseline)
 
+                            if (tf.reduce_any(tf.math.is_nan(nnl_loss)) or tf.reduce_any(tf.math.is_nan(baseline_loss))):
+                                print("Loss is nan")
+                                exit()
                             # print("nnl_loss ", nnl_loss)
                             # print("reinforce_loss", reinforce_loss)
                             # print("reinforce_std_loss", reinforce_std_loss)
